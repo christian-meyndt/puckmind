@@ -114,13 +114,12 @@ Required in `.env`:
 - [x] Basic agent.py with 7 tools written
 - [x] All documentation translated to English
 - [x] MongoDB Atlas connected and seeded ✅
-- [x] Agent code running (needs API quota) ⚠️
+- [x] Agent running with Vertex AI ✅
+- [x] MongoDB MCP server integrated ✅
 - [ ] Google Cloud Agent Builder deployment
 - [ ] Frontend / demo UI
 - [ ] Demo video recorded
 - [ ] Devpost submission completed
-
-**Current Blocker**: Google Gemini API quota exceeded. Need to wait for quota reset or upgrade to paid tier.
 
 ## Hackathon Requirements
 
