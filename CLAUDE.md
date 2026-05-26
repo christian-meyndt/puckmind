@@ -51,29 +51,44 @@ python src/seed_data.py
 
 ### Agent Tools
 
-The agent has access to 7 function tools defined in `src/agent.py`:
+The agent has access to **17 function tools** across three files:
 
+**Core Tools (`src/agent.py`):**
 1. **get_all_players()** - Returns all team players with statistics
 2. **get_available_players()** - Returns only available players (not injured/suspended)
 3. **get_top_scorers(limit)** - Returns top goal scorers
 4. **get_recent_games(limit)** - Returns recent game results
 5. **get_season_record()** - Returns season win/loss/draw record
-6. **suggest_lineup()** - Suggests optimal lineup based on available players and performance
+6. **suggest_lineup()** - Visual lineup card with hockey rink layout
 7. **add_game_result(opponent, score_us, score_them, notes)** - Records new game results
+8. **suggest_training_exercises()** - Analyzes weaknesses and suggests drills
+9. **get_player_detailed_stats(player_name)** - Position-specific detailed stats
+10. **get_goalie_stats()** - GAA, save %, wins, shutouts
+11. **get_top_forwards()** - Top forwards with offensive stats (shooting %, faceoff %)
+12. **get_top_defenders()** - Top defenders with defensive stats (plus/minus, blocked shots)
+
+**Enhanced Analytics Tools (`src/agent_enhanced.py`):**
+13. **get_smart_availability_warnings()** - Proactive lineup issue alerts
+14. **analyze_opponent(opponent_name)** - Historical performance vs opponent
+15. **track_player_form()** - Hot/cold streak identification
+16. **generate_post_game_summary(opponent, score_us, score_them)** - Social media ready summaries
+17. **predict_season_finish()** - Season standings projection
 
 ### Database Schema
 
 MongoDB collections in the `hockey_agent` database:
 
-**players**
-- name, number, position (Goalie/Defense/Forward), shoots (L/R)
-- goals, assists
-- available (boolean - tracks injuries/suspensions)
+**players** (17 players with comprehensive stats)
+- Basic: name, number, position (Goalie/Defense/Forward), shoots (L/R), available
+- Scoring: goals, assists, points
+- Advanced (Forwards): shooting_pct, faceoff_pct, shots
+- Advanced (Defenders): plus_minus, blocked_shots, hits, pim
+- Advanced (Goalies): games_played, wins, losses, gaa, save_pct, shutouts, shots_against, saves
 
-**games**
+**games** (12 games of season history)
 - date, opponent, home (boolean)
 - score_us, score_them, result (W/L/D)
-- scorers (list), notes
+- scorers (list), notes (detailed game observations)
 
 **lineups**
 - game_opponent, date
@@ -100,24 +115,41 @@ Required in `.env`:
 
 ## Example Agent Queries
 
+**Basic Queries:**
 - "Who is available for Saturday?"
-- "Suggest a lineup"
-- "Record result: 3:1 against EHC Eagles"
 - "Show me the top 3 scorers"
 - "What is our season record?"
+- "Record result: 3:1 against EHC Eagles"
+
+**Advanced Analytics:**
+- "Suggest a lineup" → Visual hockey rink layout with full lineup
+- "Show me our top forwards with offensive stats" → Goals, assists, shooting %, faceoff %
+- "Who are our best defenders?" → Plus/minus, blocked shots, hits
+- "What are our goalie statistics?" → GAA, save %, shutouts
+
+**Wow-Factor Features:**
+- "Check player availability and warn about lineup issues" → Smart proactive alerts
+- "Who's on a hot or cold streak?" → Form tracking with recommendations
+- "Analyze our history against EHC Eagles" → Opponent scouting report
+- "Predict our final standing this season" → Season projections
+- "Suggest training exercises based on our weaknesses" → Position-specific drills
 
 ## Project Status
 
 - [x] Project structure set up
 - [x] GitHub repo created
 - [x] Sample data model defined (players, games, lineups)
-- [x] Basic agent.py with 7 tools written
+- [x] Agent with 17 tools (up from 7) ✅
 - [x] All documentation translated to English
 - [x] MongoDB Atlas connected and seeded ✅
-- [x] Agent running with Vertex AI ✅
+- [x] Agent running with Vertex AI (Gemini 2.5 Flash) ✅
 - [x] MongoDB MCP server integrated ✅
+- [x] Streamlit web UI built ✅
+- [x] Visual lineup card (wow-factor) ✅
+- [x] Position-specific analytics ✅
+- [x] Enhanced statistics (shooting %, faceoff %, blocked shots, GAA, etc.) ✅
+- [x] Wow-factor features (form tracking, opponent analysis, predictions) ✅
 - [ ] Google Cloud Agent Builder deployment
-- [ ] Frontend / demo UI
 - [ ] Demo video recorded
 - [ ] Devpost submission completed
 
@@ -130,16 +162,38 @@ Required in `.env`:
 - Needs ~3 min demo video
 - Needs hosted project URL
 
-## Next Steps (in priority order)
+## Running the Agent
 
-1. Run `python src/seed_data.py` to populate MongoDB Atlas
-2. Run `python src/agent.py` and test basic queries
-3. Fix any import/dependency issues with Google ADK
-4. Add MongoDB MCP server integration
-5. Deploy to Google Cloud Agent Builder
-6. Build simple web UI for demo
-7. Record demo video
-8. Complete Devpost submission
+### Command Line Interface
+```bash
+cd /Users/christianmeyndt/PyCharmMiscProject/puckmind
+source venv/bin/activate
+python src/agent.py
+```
+
+### Web Interface (Recommended for Demo)
+```bash
+cd /Users/christianmeyndt/PyCharmMiscProject/puckmind
+source venv/bin/activate
+streamlit run app.py
+```
+
+Then open http://localhost:8501 in your browser.
+
+### Reseed Database (if needed)
+```bash
+source venv/bin/activate
+python src/seed_data.py
+```
+
+## Next Steps (Hackathon Submission)
+
+1. ✅ ~~Build agent with MongoDB MCP integration~~
+2. ✅ ~~Create comprehensive statistics and analytics~~
+3. ✅ ~~Build Streamlit web UI with wow-factor features~~
+4. **Deploy to Google Cloud Agent Builder** (in progress)
+5. **Record 3-minute demo video** showing key features
+6. **Complete Devpost submission** (before June 11, 2026)
 
 ## Coding Conventions
 
