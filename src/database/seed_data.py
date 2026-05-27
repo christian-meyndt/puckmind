@@ -4,43 +4,27 @@ Populates MongoDB Atlas with sample data for Day 1.
 
 Usage:
   1. Set MONGODB_URI in .env (see README)
-  2. python seed_data.py
+  2. python -m src.database.seed_data
 """
 
-from pymongo import MongoClient
 from datetime import datetime, timedelta
-import os
-from dotenv import load_dotenv
-import ssl
-import certifi
-
-# Load environment variables from .env file
-load_dotenv()
+from src.database.connection import get_db
 
 # ── Connection ────────────────────────────────────────────────
-MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
-
-# Try connection with ssl=False (disable SSL verification - not for production!)
 print("Connecting to MongoDB Atlas...")
-print("Note: Using ssl_cert_reqs=CERT_NONE for compatibility\n")
+print("Note: Using centralized database connection\n")
 
-import ssl as ssl_lib
-client = MongoClient(
-    MONGODB_URI,
-    ssl=True,
-    ssl_cert_reqs=ssl_lib.CERT_NONE,
-    serverSelectionTimeoutMS=10000
-)
+db = get_db()
 
 # Test the connection
 try:
+    from src.database.connection import get_client
+    client = get_client()
     client.admin.command('ping')
     print("✓ MongoDB connection successful!\n")
 except Exception as e:
     print(f"✗ Connection test failed: {e}\n")
     raise
-
-db = client["hockey_agent"]
 
 # ── Clear collections (for clean restart) ─────────────────────
 db.players.drop()

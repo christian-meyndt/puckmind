@@ -1,23 +1,13 @@
 """
-Enhanced agent tools with wow-factor features
+Enhanced Analytics Tools for Hockey Agent
+Provides advanced analytics, predictions, and insights.
 """
 
-import os
-import ssl
-from dotenv import load_dotenv
-from pymongo import MongoClient
 from datetime import datetime
+from src.database import get_db
 
-load_dotenv()
-
-# MongoDB Connection (same as in agent.py)
-MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
-client = MongoClient(
-    MONGODB_URI,
-    ssl=True,
-    ssl_cert_reqs=ssl.CERT_NONE
-)
-db = client["hockey_agent"]
+# MongoDB Connection
+db = get_db()
 
 
 def get_smart_availability_warnings() -> dict:

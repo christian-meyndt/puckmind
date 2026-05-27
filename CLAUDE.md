@@ -28,12 +28,15 @@ The agent provides conversational assistance for common team management tasks th
 pip install -r requirements.txt
 
 # Set up environment variables
-# Edit .env and add your MONGODB_URI and GOOGLE_API_KEY
+# Edit .env and add your MONGODB_URI and GOOGLE_CLOUD_PROJECT
 
 # Seed the database with sample data
-python src/seed_data.py
+python -m src.database.seed_data
 
-# Run the agent CLI
+# Run the Streamlit web UI (recommended)
+streamlit run app.py
+
+# Or run the agent CLI
 python src/agent.py
 ```
 
@@ -44,14 +47,40 @@ python src/agent.py
 python src/agent.py
 
 # Reseed the database (WARNING: drops all existing data)
-python src/seed_data.py
+python -m src.database.seed_data
+
+# Test imports
+python -c "from src.config import *; from src.database import get_db; print('OK')"
 ```
 
 ## Architecture
 
+### Project Structure (Modular)
+
+```
+puckmind/
+├── app.py                      # Streamlit UI entry point (506 lines)
+├── src/
+│   ├── config.py               # Centralized configuration
+│   ├── database/
+│   │   ├── __init__.py
+│   │   ├── connection.py       # Singleton MongoDB connection
+│   │   └── seed_data.py        # Database seeding script
+│   ├── agents/                 # Agent logic
+│   │   ├── agent.py            # Main agent with 12 core tools
+│   │   └── agent_enhanced.py   # 5 enhanced analytics tools
+│   ├── ui/
+│   │   ├── __init__.py
+│   │   └── game_wizard_ui.py   # 5-step game addition wizard
+│   ├── game_wizard.py          # Game stats helper functions
+│   └── lineup_visualizer.py    # Visual lineup card generator
+├── requirements.txt
+└── docs/
+```
+
 ### Agent Tools
 
-The agent has access to **17 function tools** across three files:
+The agent has access to **19 function tools** across two files:
 
 **Core Tools (`src/agent.py`):**
 1. **get_all_players()** - Returns all team players with statistics
@@ -60,19 +89,21 @@ The agent has access to **17 function tools** across three files:
 4. **get_recent_games(limit)** - Returns recent game results
 5. **get_season_record()** - Returns season win/loss/draw record
 6. **suggest_lineup()** - Visual lineup card with hockey rink layout
-7. **add_game_result(opponent, score_us, score_them, notes)** - Records new game results
-8. **suggest_training_exercises()** - Analyzes weaknesses and suggests drills
-9. **get_player_detailed_stats(player_name)** - Position-specific detailed stats
-10. **get_goalie_stats()** - GAA, save %, wins, shutouts
-11. **get_top_forwards()** - Top forwards with offensive stats (shooting %, faceoff %)
-12. **get_top_defenders()** - Top defenders with defensive stats (plus/minus, blocked shots)
+7. **add_game_result(opponent, score_us, score_them, notes, scorers)** - Records new game results
+8. **update_player_availability(player_name, available, reason)** - Update player status
+9. **update_player_stats(player_name, goals, assists, pim)** - Manual stats update
+10. **suggest_training_exercises()** - Analyzes weaknesses and suggests drills
+11. **get_player_detailed_stats(player_name)** - Position-specific detailed stats
+12. **get_goalie_stats()** - GAA, save %, wins, shutouts
+13. **get_top_forwards()** - Top forwards with offensive stats (shooting %, faceoff %)
+14. **get_top_defenders()** - Top defenders with defensive stats (plus/minus, blocked shots)
 
 **Enhanced Analytics Tools (`src/agent_enhanced.py`):**
-13. **get_smart_availability_warnings()** - Proactive lineup issue alerts
-14. **analyze_opponent(opponent_name)** - Historical performance vs opponent
-15. **track_player_form()** - Hot/cold streak identification
-16. **generate_post_game_summary(opponent, score_us, score_them)** - Social media ready summaries
-17. **predict_season_finish()** - Season standings projection
+15. **get_smart_availability_warnings()** - Proactive lineup issue alerts
+16. **analyze_opponent(opponent_name)** - Historical performance vs opponent
+17. **track_player_form()** - Hot/cold streak identification
+18. **generate_post_game_summary(opponent, score_us, score_them)** - Social media ready summaries
+19. **predict_season_finish()** - Season standings projection
 
 ### Database Schema
 
@@ -110,8 +141,9 @@ The agent uses Google ADK's `InMemorySessionService` for local CLI sessions. Eac
 Required in `.env`:
 - `MONGODB_URI` - MongoDB Atlas connection string
 - `GOOGLE_CLOUD_PROJECT` - Google Cloud project ID (required for Vertex AI)
+- `GOOGLE_CLOUD_LOCATION` - GCP region (default: us-central1)
 
-**Note**: The agent now uses Vertex AI (not Google AI API) for better quotas. Authentication is via `gcloud auth application-default login`.
+**Note**: The agent uses Vertex AI (not Google AI API) for better quotas. Authentication is via `gcloud auth application-default login`. All configuration is centralized in `src/config.py`.
 
 ## Example Agent Queries
 
@@ -139,7 +171,7 @@ Required in `.env`:
 - [x] Project structure set up
 - [x] GitHub repo created
 - [x] Sample data model defined (players, games, lineups)
-- [x] Agent with 17 tools (up from 7) ✅
+- [x] Agent with 19 tools ✅
 - [x] All documentation translated to English
 - [x] MongoDB Atlas connected and seeded ✅
 - [x] Agent running with Vertex AI (Gemini 2.5 Flash) ✅
@@ -149,6 +181,12 @@ Required in `.env`:
 - [x] Position-specific analytics ✅
 - [x] Enhanced statistics (shooting %, faceoff %, blocked shots, GAA, etc.) ✅
 - [x] Wow-factor features (form tracking, opponent analysis, predictions) ✅
+- [x] 5-step game wizard workflow ✅
+- [x] **Modular architecture refactoring** ✅
+  - [x] Centralized configuration
+  - [x] Eliminated code duplication
+  - [x] Proper module structure (database/, ui/)
+  - [x] app.py reduced from 800+ to 506 lines
 - [ ] Google Cloud Agent Builder deployment
 - [ ] Demo video recorded
 - [ ] Devpost submission completed
@@ -183,7 +221,7 @@ Then open http://localhost:8501 in your browser.
 ### Reseed Database (if needed)
 ```bash
 source venv/bin/activate
-python src/seed_data.py
+python -m src.database.seed_data
 ```
 
 ## Next Steps (Hackathon Submission)

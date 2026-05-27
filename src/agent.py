@@ -22,21 +22,13 @@ from src.agent_enhanced import (
     predict_season_finish,
 )
 
+from src.config import MODEL_NAME, AGENT_NAME, APP_NAME, DEFAULT_USER_ID
+from src.database import get_db
+
 load_dotenv()
 
-# Force use of Vertex AI
-if "GOOGLE_API_KEY" in os.environ:
-    del os.environ["GOOGLE_API_KEY"]
-os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
-
 # ── MongoDB Connection ────────────────────────────────────────
-MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
-client = MongoClient(
-    MONGODB_URI,
-    ssl=True,
-    ssl_cert_reqs=ssl.CERT_NONE
-)
-db = client["hockey_agent"]
+db = get_db()
 
 
 # ── Tools (Functions the agent can call) ──────────────────────
@@ -148,17 +140,100 @@ def suggest_lineup() -> dict:
     return lineup_data
 
 
-def add_game_result(opponent: str, score_us: int, score_them: int, notes: str = "") -> dict:
+def update_player_stats(player_name: str, goals: int = None, assists: int = None, pim: int = None) -> dict:
     """
-    Records a new game result.
+    Updates a player's statistics manually.
+    Args:
+        player_name: Name of the player
+        goals: New goals total (optional)
+        assists: New assists total (optional)
+        pim: New penalty minutes total (optional)
+    """
+    player = db.players.find_one(
+        {"name": {"$regex": player_name, "$options": "i"}},
+        {"_id": 0, "name": 1}
+    )
+
+    if not player:
+        return {"status": "error", "message": f"Player '{player_name}' not found"}
+
+    # Build update dict
+    update_fields = {}
+    if goals is not None:
+        update_fields["goals"] = goals
+    if assists is not None:
+        update_fields["assists"] = assists
+    if pim is not None:
+        update_fields["pim"] = pim
+
+    if not update_fields:
+        return {"status": "error", "message": "No stats provided to update"}
+
+    # Update stats
+    db.players.update_one(
+        {"name": player["name"]},
+        {"$set": update_fields}
+    )
+
+    updated_fields = ", ".join([f"{k}={v}" for k, v in update_fields.items()])
+    return {
+        "status": "ok",
+        "message": f"Updated {player['name']}: {updated_fields}",
+        "player": player["name"],
+        "updates": update_fields
+    }
+
+
+def update_player_availability(player_name: str, available: bool, reason: str = "") -> dict:
+    """
+    Updates a player's availability status.
+    Args:
+        player_name: Name of the player
+        available: True if available, False if injured/suspended
+        reason: Optional reason for unavailability (injury, suspension, etc.)
+    """
+    # Search for player (case-insensitive)
+    player = db.players.find_one(
+        {"name": {"$regex": player_name, "$options": "i"}},
+        {"_id": 0, "name": 1}
+    )
+
+    if not player:
+        return {"status": "error", "message": f"Player '{player_name}' not found"}
+
+    # Update availability
+    result = db.players.update_one(
+        {"name": player["name"]},
+        {"$set": {"available": available}}
+    )
+
+    status_text = "available" if available else "unavailable"
+    reason_text = f" ({reason})" if reason else ""
+
+    return {
+        "status": "ok",
+        "message": f"{player['name']} marked as {status_text}{reason_text}",
+        "player": player["name"],
+        "available": available
+    }
+
+
+def add_game_result(opponent: str, score_us: int, score_them: int, notes: str = "", scorers: list = None) -> dict:
+    """
+    Records a new game result and updates player statistics.
     Args:
         opponent:   Name of the opponent
         score_us:   Our goals
         score_them: Opponent's goals
         notes:      Optional notes about the game
+        scorers:    Optional list of goal scorers (updates their stats)
     """
     from datetime import datetime
     result = "W" if score_us > score_them else ("L" if score_us < score_them else "D")
+
+    if scorers is None:
+        scorers = []
+
     game = {
         "date": datetime.now(),
         "opponent": opponent,
@@ -166,11 +241,46 @@ def add_game_result(opponent: str, score_us: int, score_them: int, notes: str = 
         "score_us": score_us,
         "score_them": score_them,
         "result": result,
-        "scorers": [],
+        "scorers": scorers,
         "notes": notes,
     }
     db.games.insert_one(game)
-    return {"status": "ok", "message": f"Game against {opponent} ({score_us}:{score_them}) saved."}
+
+    # Update player statistics for scorers
+    stats_updated = []
+    for scorer_name in scorers:
+        player = db.players.find_one(
+            {"name": {"$regex": scorer_name, "$options": "i"}},
+            {"_id": 0, "name": 1, "goals": 1}
+        )
+        if player:
+            db.players.update_one(
+                {"name": player["name"]},
+                {"$inc": {"goals": 1}}  # Increment goals by 1
+            )
+            stats_updated.append(player["name"])
+
+    # Update goalie stats (simplified - assumes starting goalie played)
+    goalie = db.players.find_one({"position": "Goalie", "available": True})
+    if goalie:
+        # Update goalie record
+        if result == "W":
+            db.players.update_one(
+                {"name": goalie["name"]},
+                {"$inc": {"wins": 1, "games_played": 1}}
+            )
+        elif result == "L":
+            db.players.update_one(
+                {"name": goalie["name"]},
+                {"$inc": {"losses": 1, "games_played": 1}}
+            )
+        stats_updated.append(f"{goalie['name']} (goalie stats)")
+
+    message = f"Game against {opponent} ({score_us}:{score_them}) saved."
+    if stats_updated:
+        message += f" Updated stats for: {', '.join(stats_updated)}"
+
+    return {"status": "ok", "message": message, "stats_updated": stats_updated}
 
 
 def get_player_detailed_stats(player_name: str = None) -> dict:
@@ -388,8 +498,8 @@ Proactively warn about potential lineup issues (e.g., low defender count).
 # and Application Default Credentials are configured
 
 hockey_agent = Agent(
-    name="hockey_scout",
-    model="gemini-2.5-flash",  # Vertex AI model
+    name=AGENT_NAME,
+    model=MODEL_NAME,
     description="Hockey Scout & Team Manager Agent",
     instruction=SYSTEM_PROMPT,
     tools=[
@@ -400,6 +510,8 @@ hockey_agent = Agent(
         FunctionTool(get_season_record),
         FunctionTool(suggest_lineup),
         FunctionTool(add_game_result),
+        FunctionTool(update_player_availability),
+        FunctionTool(update_player_stats),
         FunctionTool(suggest_training_exercises),
         FunctionTool(get_smart_availability_warnings),
         FunctionTool(analyze_opponent),
@@ -422,13 +534,13 @@ async def main():
     session_service = InMemorySessionService()
     runner = Runner(
         agent=hockey_agent,
-        app_name="hockey_agent",
+        app_name=APP_NAME,
         session_service=session_service,
     )
 
     session = await session_service.create_session(
-        app_name="hockey_agent",
-        user_id="trainer",
+        app_name=APP_NAME,
+        user_id=DEFAULT_USER_ID,
     )
 
     print("🏒 Hockey Agent ready! (Exit with 'exit')\n")
@@ -448,7 +560,7 @@ async def main():
         )
 
         events = runner.run(
-            user_id="trainer",
+            user_id=DEFAULT_USER_ID,
             session_id=session.id,
             new_message=content,
         )

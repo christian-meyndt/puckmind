@@ -74,7 +74,7 @@ gcloud auth application-default login
 
 ### 5. Seed the database
 ```bash
-python src/seed_data.py
+python -m src.database.seed_data
 ```
 
 ### 6. Start the web UI (recommended)
@@ -107,16 +107,23 @@ python src/agent.py
 
 ```
 puckmind/
-├── app.py                      # Streamlit web UI
+├── app.py                      # Streamlit web UI (506 lines, refactored)
 ├── src/
-│   ├── agent.py                # Main agent with 17 tools
-│   ├── agent_enhanced.py       # Wow-factor features (analytics, predictions)
-│   ├── agent_mcp.py            # MCP integration test script
-│   ├── lineup_visualizer.py    # Visual lineup card generator
-│   └── seed_data.py            # Sample data with 17 players, 12 games
+│   ├── config.py               # Centralized configuration
+│   ├── database/
+│   │   ├── connection.py       # Singleton MongoDB connection
+│   │   └── seed_data.py        # Sample data with 17 players, 12 games
+│   ├── ui/
+│   │   └── game_wizard_ui.py   # 5-step game addition wizard
+│   ├── agent.py                # Main agent with 14 tools
+│   ├── agent_enhanced.py       # Wow-factor features (5 analytics tools)
+│   ├── game_wizard.py          # Game stats helper functions
+│   └── lineup_visualizer.py    # Visual lineup card generator
 ├── requirements.txt            # Python dependencies
 ├── .env                        # Environment variables (not in git)
-├── CLAUDE.md                   # Project documentation
+├── CLAUDE.md                   # Developer documentation
+├── ARCHITECTURE_REVIEW.md      # Architecture analysis & recommendations
+├── CHANGELOG.md                # Project changelog
 ├── MONGODB_MCP_INTEGRATION.md  # MCP integration details
 ├── VERTEX_AI_SETUP.md          # Vertex AI setup guide
 └── README.md
