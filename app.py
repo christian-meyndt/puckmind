@@ -13,6 +13,7 @@ from google.genai import types
 from src.config import APP_NAME, DEFAULT_WEB_USER_ID
 from src.database import get_db
 from src.ui import render_game_wizard
+from src.ui.dashboard import render_dashboard
 from src.agent import (
     get_all_players,
     get_available_players,
@@ -226,15 +227,24 @@ if st.session_state.session_service is None:
         agent_session = loop.run_until_complete(create_session(session_service))
         st.session_state.agent_session = agent_session
 
-# Main content - tabs for different views
-tab1, tab2 = st.tabs(["💬 Chat", "📊 Data Management"])
+# Initialize active tab state
+if "active_tab" not in st.session_state:
+    st.session_state.active_tab = "home"
 
-with tab2:
+# Main content - tabs for different views
+tab_home, tab_chat, tab_data = st.tabs(["🏠 Home", "💬 Chat", "📊 Data Management"])
+
+# Database connection (shared across tabs)
+db = get_db()
+
+with tab_home:
+    render_dashboard(db)
+
+with tab_data:
     st.header("Data Management")
     st.write("Manage your team's data directly through the interface.")
 
     # Load players data once at the top
-    db = get_db()
     players = list(db.players.find({}, {"_id": 0, "name": 1, "available": 1, "position": 1, "number": 1}))
 
     # Add Game Result - Guided Wizard (extracted to separate module)
@@ -442,7 +452,7 @@ with tab2:
         if game.get("notes"):
             st.caption(f"Notes: {game['notes']}")
 
-with tab1:
+with tab_chat:
     st.subheader("Chat with your Hockey Agent")
 
     # Display chat history

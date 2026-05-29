@@ -381,6 +381,38 @@ def get_top_defenders() -> list[dict]:
     return defenders
 
 
+def record_game_quick(opponent: str, score_us: int, score_them: int, scorers_text: str = "", goalie_name: str = None, shots_against: int = 0) -> dict:
+    """
+    Quick game entry - record a game with natural language scorer text.
+    Much faster than the detailed wizard.
+
+    Args:
+        opponent: Opponent team name
+        score_us: Our score
+        score_them: Their score
+        scorers_text: Natural language scorers (e.g., "Lukas 2G 1A, Felix 1G")
+        goalie_name: Optional goalie name
+        shots_against: Optional shots against goalie
+
+    Examples:
+        record_game_quick("Eagles", 4, 2, "Lukas 2G 1A, Felix 1G, Michael 1G")
+        record_game_quick("Bears", 3, 5, "Lukas hat trick", "Markus", 42)
+    """
+    from src.quick_game_entry import quick_record_game
+
+    result = quick_record_game(
+        db,
+        opponent=opponent,
+        score_us=score_us,
+        score_them=score_them,
+        scorers_text=scorers_text,
+        goalie_name=goalie_name,
+        shots_against=shots_against
+    )
+
+    return result
+
+
 def suggest_training_exercises() -> dict:
     """
     Analyzes team weaknesses and suggests training exercises.
@@ -469,6 +501,7 @@ def suggest_training_exercises() -> dict:
 SYSTEM_PROMPT = """
 You are the Hockey Scout & Team Manager Agent for an amateur ice hockey team.
 You help the coach and manager with:
+- **Quick game entry** - Use record_game_quick() for fast game recording (e.g., "Record 4-2 win vs Eagles, Lukas 2G 1A, Felix 1G")
 - Player statistics and availability (with proactive warnings about lineup issues)
 - Lineup suggestions with visual formatting
 - Game reports and season record
@@ -479,6 +512,9 @@ You help the coach and manager with:
 - Season predictions and standings
 - Position-specific analytics (forwards vs defenders)
 - Simple analyses and recommendations
+
+When a user wants to record a game quickly, use record_game_quick() with natural language scorer text.
+For detailed stat entry, direct them to the Data Management tab.
 
 When analyzing player statistics, consider position-specific metrics:
 - **Forwards**: Focus on goals, assists, points, shooting %, faceoff %, offensive zone time
@@ -510,6 +546,7 @@ hockey_agent = Agent(
         FunctionTool(get_season_record),
         FunctionTool(suggest_lineup),
         FunctionTool(add_game_result),
+        FunctionTool(record_game_quick),  # NEW: Quick game entry
         FunctionTool(update_player_availability),
         FunctionTool(update_player_stats),
         FunctionTool(suggest_training_exercises),
