@@ -231,16 +231,38 @@ if st.session_state.session_service is None:
 if "active_tab" not in st.session_state:
     st.session_state.active_tab = "home"
 
-# Main content - tabs for different views
-tab_home, tab_chat, tab_data = st.tabs(["🏠 Home", "💬 Chat", "📊 Data Management"])
-
 # Database connection (shared across tabs)
 db = get_db()
 
-with tab_home:
+# Custom tab navigation (allows programmatic control)
+st.write("")  # Spacing
+selected_tab = st.radio(
+    "Navigation",
+    ["🏠 Home", "💬 Chat", "📊 Data Management"],
+    horizontal=True,
+    key="tab_selector",
+    label_visibility="collapsed"
+)
+
+# Map display name to internal name
+tab_mapping = {
+    "🏠 Home": "home",
+    "💬 Chat": "chat",
+    "📊 Data Management": "data"
+}
+
+# Update session state if user clicked a different tab
+current_tab = tab_mapping[selected_tab]
+if st.session_state.active_tab != current_tab:
+    st.session_state.active_tab = current_tab
+
+st.divider()
+
+# Render the active tab
+if st.session_state.active_tab == "home":
     render_dashboard(db)
 
-with tab_data:
+elif st.session_state.active_tab == "data":
     st.header("Data Management")
     st.write("Manage your team's data directly through the interface.")
 
@@ -642,7 +664,7 @@ with tab_data:
         if game.get("notes"):
             st.caption(f"Notes: {game['notes']}")
 
-with tab_chat:
+elif st.session_state.active_tab == "chat":
     st.subheader("Chat with your Hockey Agent")
 
     # Display chat history

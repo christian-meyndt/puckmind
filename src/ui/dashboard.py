@@ -211,17 +211,17 @@ def _render_quick_actions():
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        if st.button("➕ Add Game", use_container_width=True, type="primary"):
+        if st.button("➕ Add Game", use_container_width=True, type="primary", key="qa_add_game"):
             st.session_state.active_tab = "data"
             st.rerun()
 
     with col2:
-        if st.button("👥 Update Availability", use_container_width=True):
+        if st.button("👥 Update Availability", use_container_width=True, key="qa_availability"):
             st.session_state.active_tab = "data"
             st.rerun()
 
     with col3:
-        if st.button("📊 View Stats", use_container_width=True):
+        if st.button("📊 View Stats", use_container_width=True, key="qa_stats"):
             st.session_state.active_tab = "chat"
             st.rerun()
 
