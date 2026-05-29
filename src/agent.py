@@ -413,6 +413,80 @@ def record_game_quick(opponent: str, score_us: int, score_them: int, scorers_tex
     return result
 
 
+def schedule_game(opponent: str, date_str: str, time: str = "19:00", location: str = "", home: bool = True, notes: str = "") -> dict:
+    """
+    Schedule an upcoming game.
+
+    Args:
+        opponent: Opponent team name
+        date_str: Date in format "YYYY-MM-DD" or "DD.MM.YYYY"
+        time: Game time (HH:MM format, default 19:00)
+        location: Game location/rink
+        home: True if home game, False if away
+        notes: Additional notes
+
+    Examples:
+        schedule_game("Eagles", "2026-06-15", "19:30", "City Ice Arena", True)
+        schedule_game("Bears", "15.06.2026", home=False, location="Away Rink")
+    """
+    from src.schedule import add_scheduled_game
+    from datetime import datetime
+
+    # Parse date (support multiple formats)
+    try:
+        if "-" in date_str:
+            game_date = datetime.strptime(date_str, "%Y-%m-%d")
+        elif "." in date_str:
+            game_date = datetime.strptime(date_str, "%d.%m.%Y")
+        else:
+            return {"status": "error", "message": "Invalid date format. Use YYYY-MM-DD or DD.MM.YYYY"}
+    except ValueError:
+        return {"status": "error", "message": "Invalid date format"}
+
+    return add_scheduled_game(db, opponent, game_date, location, time, home, notes)
+
+
+def get_schedule(limit: int = 10) -> dict:
+    """
+    Get upcoming scheduled games.
+
+    Args:
+        limit: Maximum number of games to return (default 10)
+
+    Returns:
+        Dictionary with upcoming games list
+    """
+    from src.schedule import get_upcoming_games
+
+    games = get_upcoming_games(db, limit)
+
+    return {
+        "upcoming_games": games,
+        "count": len(games),
+        "message": f"Found {len(games)} upcoming game(s)" if games else "No upcoming games scheduled"
+    }
+
+
+def get_next_game_info() -> dict:
+    """
+    Get information about the next scheduled game.
+
+    Returns:
+        Dictionary with next game details or message if none scheduled
+    """
+    from src.schedule import get_next_game
+
+    next_game = get_next_game(db)
+
+    if not next_game:
+        return {"message": "No upcoming games scheduled"}
+
+    return {
+        "next_game": next_game,
+        "message": f"Next game: {next_game['opponent']} on {next_game['date_str']} ({next_game['days_until']} days)"
+    }
+
+
 def suggest_training_exercises() -> dict:
     """
     Analyzes team weaknesses and suggests training exercises.
@@ -546,7 +620,10 @@ hockey_agent = Agent(
         FunctionTool(get_season_record),
         FunctionTool(suggest_lineup),
         FunctionTool(add_game_result),
-        FunctionTool(record_game_quick),  # NEW: Quick game entry
+        FunctionTool(record_game_quick),  # Quick game entry
+        FunctionTool(schedule_game),  # NEW: Schedule management
+        FunctionTool(get_schedule),  # NEW: Get upcoming games
+        FunctionTool(get_next_game_info),  # NEW: Next game info
         FunctionTool(update_player_availability),
         FunctionTool(update_player_stats),
         FunctionTool(suggest_training_exercises),

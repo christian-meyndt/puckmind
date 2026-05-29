@@ -130,9 +130,34 @@ def _render_main_content(db):
 def _render_sidebar_widgets(db):
     """Render sidebar widgets (right column)"""
 
-    # Next Game Widget (placeholder for now)
+    # Next Game Widget
     st.subheader("🗓️ Next Game")
-    st.info("Schedule feature coming soon!\nFor now, add upcoming games manually.")
+
+    from src.schedule import get_next_game
+
+    next_game = get_next_game(db)
+
+    if next_game:
+        st.success(f"**{next_game['opponent']}**")
+        st.write(f"📅 {next_game['date_str']}")
+        st.write(f"🕐 {next_game['time']}")
+
+        if next_game.get('location'):
+            st.write(f"📍 {next_game['location']}")
+
+        home_away = "🏠 Home" if next_game.get('home', True) else "✈️ Away"
+        st.write(home_away)
+
+        # Days until game
+        days = next_game['days_until']
+        if days == 0:
+            st.info("🔥 **TODAY!**")
+        elif days == 1:
+            st.info("⚡ **Tomorrow!**")
+        else:
+            st.info(f"📆 In {days} days")
+    else:
+        st.info("No upcoming games scheduled.\nUse the schedule feature to add games!")
 
     st.divider()
 

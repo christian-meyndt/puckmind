@@ -247,6 +247,100 @@ with tab_data:
     # Load players data once at the top
     players = list(db.players.find({}, {"_id": 0, "name": 1, "available": 1, "position": 1, "number": 1}))
 
+    # Schedule Management
+    st.subheader("🗓️ Schedule Management")
+    st.write("Manage upcoming games and view schedule.")
+
+    with st.expander("➕ Add Scheduled Game", expanded=False):
+        with st.form("add_scheduled_game"):
+            col1, col2 = st.columns(2)
+            with col1:
+                sched_opponent = st.text_input("Opponent", placeholder="EHC Eagles")
+                sched_date = st.date_input("Game Date")
+            with col2:
+                sched_time = st.time_input("Game Time", value=None)
+                sched_location = st.text_input("Location", placeholder="City Ice Arena")
+
+            sched_home = st.checkbox("Home Game", value=True)
+            sched_notes = st.text_area("Notes (optional)", placeholder="Wear white jerseys, bring water bottles...")
+
+            if st.form_submit_button("📅 Schedule Game", use_container_width=True):
+                if sched_opponent and sched_date:
+                    from src.schedule import add_scheduled_game
+                    from datetime import datetime
+
+                    # Combine date and time
+                    if sched_time:
+                        game_datetime = datetime.combine(sched_date, sched_time)
+                        time_str = sched_time.strftime("%H:%M")
+                    else:
+                        game_datetime = datetime.combine(sched_date, datetime.min.time()).replace(hour=19)
+                        time_str = "19:00"
+
+                    result = add_scheduled_game(
+                        db,
+                        opponent=sched_opponent,
+                        game_date=game_datetime,
+                        location=sched_location,
+                        time=time_str,
+                        home=sched_home,
+                        notes=sched_notes
+                    )
+
+                    if result["status"] == "success":
+                        st.success(result["message"])
+                        st.rerun()
+                    else:
+                        st.error(result["message"])
+                else:
+                    st.error("Please enter opponent and date")
+
+    # Show upcoming games
+    from src.schedule import get_upcoming_games
+
+    upcoming = get_upcoming_games(db, limit=10)
+
+    if upcoming:
+        st.write("**Upcoming Games:**")
+        for game in upcoming:
+            col1, col2, col3 = st.columns([3, 2, 1])
+            with col1:
+                home_away = "vs" if game.get("home", True) else "at"
+                st.write(f"**{home_away} {game['opponent']}**")
+            with col2:
+                st.write(f"📅 {game['date_str']} - {game['time']}")
+            with col3:
+                if game['days_until'] == 0:
+                    st.write("🔥 Today")
+                elif game['days_until'] == 1:
+                    st.write("⚡ Tomorrow")
+                else:
+                    st.write(f"📆 {game['days_until']}d")
+
+            if game.get("location"):
+                st.caption(f"📍 {game['location']}")
+            if game.get("notes"):
+                st.caption(f"📝 {game['notes']}")
+
+            st.divider()
+
+        # Calendar export
+        if st.button("📥 Export Calendar (.ics)", use_container_width=True):
+            from src.schedule import generate_ics_calendar
+
+            ics_content = generate_ics_calendar(upcoming, "PuckMind Team")
+            st.download_button(
+                label="Download Calendar",
+                data=ics_content,
+                file_name="puckmind_schedule.ics",
+                mime="text/calendar",
+                use_container_width=True
+            )
+    else:
+        st.info("No upcoming games scheduled")
+
+    st.divider()
+
     # Add Game Result - Guided Wizard (extracted to separate module)
     render_game_wizard(db, players)
 
