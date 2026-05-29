@@ -487,6 +487,56 @@ def get_next_game_info() -> dict:
     }
 
 
+def confirm_attendance(game_id: str, player_name: str, attending: bool, notes: str = "") -> dict:
+    """
+    Confirm or decline attendance for a player for a specific game.
+
+    Args:
+        game_id: Scheduled game ID
+        player_name: Player name
+        attending: True if player is coming, False if not
+        notes: Optional notes (late arrival, injury, etc.)
+
+    Examples:
+        confirm_attendance("abc123", "Lukas Schäfer", True)
+        confirm_attendance("abc123", "Felix Wagner", False, "injured ankle")
+    """
+    from src.attendance import set_attendance
+
+    status = "confirmed" if attending else "declined"
+    return set_attendance(db, game_id, player_name, status, notes)
+
+
+def check_game_roster(game_id: str) -> dict:
+    """
+    Check roster status for a scheduled game - who's confirmed, who's declined, warnings.
+
+    Args:
+        game_id: Scheduled game ID
+
+    Returns:
+        Roster status with warnings and alerts
+    """
+    from src.attendance import get_roster_status
+
+    return get_roster_status(db, game_id)
+
+
+def get_game_attendance(game_id: str) -> dict:
+    """
+    Get detailed attendance breakdown for a specific game.
+
+    Args:
+        game_id: Scheduled game ID
+
+    Returns:
+        Complete attendance list (confirmed, declined, pending)
+    """
+    from src.attendance import get_attendance_for_game
+
+    return get_attendance_for_game(db, game_id)
+
+
 def suggest_training_exercises() -> dict:
     """
     Analyzes team weaknesses and suggests training exercises.
@@ -621,9 +671,12 @@ hockey_agent = Agent(
         FunctionTool(suggest_lineup),
         FunctionTool(add_game_result),
         FunctionTool(record_game_quick),  # Quick game entry
-        FunctionTool(schedule_game),  # NEW: Schedule management
-        FunctionTool(get_schedule),  # NEW: Get upcoming games
-        FunctionTool(get_next_game_info),  # NEW: Next game info
+        FunctionTool(schedule_game),  # Schedule management
+        FunctionTool(get_schedule),  # Get upcoming games
+        FunctionTool(get_next_game_info),  # Next game info
+        FunctionTool(confirm_attendance),  # NEW: Confirm/decline attendance
+        FunctionTool(check_game_roster),  # NEW: Check roster status
+        FunctionTool(get_game_attendance),  # NEW: Get attendance details
         FunctionTool(update_player_availability),
         FunctionTool(update_player_stats),
         FunctionTool(suggest_training_exercises),

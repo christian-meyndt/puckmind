@@ -303,24 +303,120 @@ with tab_data:
     if upcoming:
         st.write("**Upcoming Games:**")
         for game in upcoming:
-            col1, col2, col3 = st.columns([3, 2, 1])
-            with col1:
-                home_away = "vs" if game.get("home", True) else "at"
-                st.write(f"**{home_away} {game['opponent']}**")
-            with col2:
-                st.write(f"📅 {game['date_str']} - {game['time']}")
-            with col3:
-                if game['days_until'] == 0:
-                    st.write("🔥 Today")
-                elif game['days_until'] == 1:
-                    st.write("⚡ Tomorrow")
-                else:
-                    st.write(f"📆 {game['days_until']}d")
+            with st.expander(f"{'vs' if game.get('home', True) else 'at'} {game['opponent']} - {game['date_str']}", expanded=False):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"📅 **Date:** {game['date_str']}")
+                    st.write(f"🕐 **Time:** {game['time']}")
+                    if game.get("location"):
+                        st.write(f"📍 **Location:** {game['location']}")
+                with col2:
+                    home_away = "🏠 Home Game" if game.get("home", True) else "✈️ Away Game"
+                    st.write(home_away)
 
-            if game.get("location"):
-                st.caption(f"📍 {game['location']}")
-            if game.get("notes"):
-                st.caption(f"📝 {game['notes']}")
+                    if game['days_until'] == 0:
+                        st.info("🔥 **TODAY!**")
+                    elif game['days_until'] == 1:
+                        st.info("⚡ **Tomorrow!**")
+                    else:
+                        st.write(f"📆 In {game['days_until']} days")
+
+                if game.get("notes"):
+                    st.write(f"📝 **Notes:** {game['notes']}")
+
+                st.divider()
+
+                # Attendance tracking section
+                st.write("**👥 Attendance Tracking:**")
+
+                from src.attendance import get_roster_status
+
+                game_id = game["game_id"]
+                roster = get_roster_status(db, game_id)
+
+                if roster["status"] == "success":
+                    summary = roster["summary"]
+
+                    # Show summary metrics
+                    col_conf, col_dec, col_pend = st.columns(3)
+                    with col_conf:
+                        st.metric("✅ Confirmed", summary["confirmed_count"])
+                    with col_dec:
+                        st.metric("❌ Declined", summary["declined_count"])
+                    with col_pend:
+                        st.metric("⏳ Pending", summary["pending_count"])
+
+                    # Show position breakdown
+                    st.caption(f"Confirmed: {summary['confirmed_forwards']}F / {summary['confirmed_defenders']}D / {summary['confirmed_goalies']}G")
+
+                    # Show warnings/alerts
+                    if roster["alerts"]:
+                        for alert in roster["alerts"]:
+                            st.error(alert)
+                    if roster["warnings"]:
+                        for warning in roster["warnings"]:
+                            st.warning(warning)
+
+                    if roster["ready_to_play"]:
+                        st.success("✅ Roster looks good!")
+
+                    # Quick attendance form
+                    with st.form(f"attendance_{game_id}"):
+                        st.write("**Quick Confirm:**")
+                        col_player, col_status = st.columns([2, 1])
+
+                        with col_player:
+                            selected_player = st.selectbox(
+                                "Player",
+                                [p["name"] for p in players],
+                                key=f"attend_player_{game_id}"
+                            )
+                        with col_status:
+                            attend_status = st.radio(
+                                "Status",
+                                ["Coming ✅", "Not Coming ❌"],
+                                horizontal=True,
+                                key=f"attend_status_{game_id}"
+                            )
+
+                        if st.form_submit_button("Update Attendance", use_container_width=True):
+                            from src.attendance import set_attendance
+
+                            status = "confirmed" if "Coming" in attend_status else "declined"
+                            result = set_attendance(db, game_id, selected_player, status)
+
+                            if result["status"] == "success":
+                                st.success(result["message"])
+                                st.rerun()
+                            else:
+                                st.error(result["message"])
+
+                    # View full roster button
+                    if st.button(f"📋 View Full Roster", key=f"roster_{game_id}", use_container_width=True):
+                        st.session_state[f"show_roster_{game_id}"] = True
+                        st.rerun()
+
+                    # Show full roster if requested
+                    if st.session_state.get(f"show_roster_{game_id}", False):
+                        from src.attendance import get_attendance_for_game
+
+                        full_attendance = get_attendance_for_game(db, game_id)
+
+                        if full_attendance["confirmed"]:
+                            st.write("**✅ Confirmed:**")
+                            for p in full_attendance["confirmed"]:
+                                st.write(f"- {p['name']} (#{p['number']}, {p['position']})")
+
+                        if full_attendance["declined"]:
+                            st.write("**❌ Declined:**")
+                            for p in full_attendance["declined"]:
+                                notes_text = f" - {p['notes']}" if p.get('notes') else ""
+                                st.write(f"- {p['name']} (#{p['number']}, {p['position']}){notes_text}")
+
+                        if full_attendance["pending"]:
+                            st.write("**⏳ Pending Response:**")
+                            for p in full_attendance["pending"]:
+                                st.write(f"- {p['name']} (#{p['number']}, {p['position']})")
 
             st.divider()
 
