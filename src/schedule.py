@@ -82,7 +82,10 @@ def get_upcoming_games(db, limit: int = 10) -> List[Dict]:
     # Convert ObjectId to string and add days_until
     for game in games:
         game["game_id"] = str(game.pop("_id"))
-        days_until = (game["date"] - now).days
+        # Calculate days until using date only (not datetime) to avoid time-of-day issues
+        today = now.date()
+        game_date = game["date"].date() if hasattr(game["date"], 'date') else game["date"]
+        days_until = (game_date - today).days
         game["days_until"] = days_until
         game["date_str"] = game["date"].strftime("%b %d, %Y")
 

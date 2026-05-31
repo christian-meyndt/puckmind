@@ -84,11 +84,36 @@ def _render_step1():
         notes = st.text_area("Game Notes (optional)", placeholder="Strong defensive performance...",
                             value=st.session_state.wizard_game_data.get("notes", ""))
 
+        # Result type (European system)
+        st.write("**Result Type:**")
+        if score_us > score_them:
+            result_type = st.radio(
+                "How did we win?",
+                ["Regular Time (3 pts)", "Overtime/Shootout (2 pts)"],
+                horizontal=True,
+                key="result_type_win"
+            )
+        elif score_us < score_them:
+            result_type = st.radio(
+                "How did we lose?",
+                ["Regular Time (0 pts)", "Overtime/Shootout (1 pt)"],
+                horizontal=True,
+                key="result_type_loss"
+            )
+        else:
+            st.info("Score is tied - game must have gone to OT/Shootout. Please adjust the score to reflect the final result.")
+            result_type = None
+
         col_btn1, col_btn2 = st.columns([1, 1])
         with col_btn2:
             if st.form_submit_button("Next: Goal Scorers →", use_container_width=True):
-                if opponent:
-                    result = "W" if score_us > score_them else ("L" if score_us < score_them else "D")
+                if opponent and result_type is not None:
+                    # Determine result code
+                    if score_us > score_them:
+                        result = "W" if "Regular" in result_type else "OTW"
+                    else:
+                        result = "L" if "Regular" in result_type else "OTL"
+
                     st.session_state.wizard_game_data = {
                         "opponent": opponent,
                         "score_us": score_us,
@@ -101,12 +126,14 @@ def _render_step1():
                     }
                     st.session_state.wizard_step = 2
                     st.rerun()
-                else:
+                elif not opponent:
                     st.error("Please enter opponent name")
+                elif result_type is None:
+                    st.error("Score is tied - adjust to show final result")
 
 
 def _render_step2(players):
-    """Step 2: Goals and Assists (Goal by Goal)"""
+    """Step 2: Goals and Assists (Goal by Goal or Quick Text Entry)"""
     st.write("### 2️⃣ Goals & Assists")
     st.write(f"**Game:** {st.session_state.wizard_game_data['score_us']}-"
              f"{st.session_state.wizard_game_data['score_them']} vs "
@@ -117,6 +144,164 @@ def _render_step2(players):
 
     total_goals = st.session_state.wizard_game_data['score_us']
 
+    # Entry mode toggle
+    if "scorer_entry_mode" not in st.session_state:
+        st.session_state.scorer_entry_mode = "Goal-by-Goal"
+
+    entry_mode = st.radio(
+        "Entry Mode",
+        ["Goal-by-Goal", "Quick Text Entry"],
+        horizontal=True,
+        key="scorer_mode_radio"
+    )
+
+    if entry_mode != st.session_state.scorer_entry_mode:
+        st.session_state.scorer_entry_mode = entry_mode
+        st.rerun()
+
+    # Quick Text Entry Mode
+    if st.session_state.scorer_entry_mode == "Quick Text Entry":
+        st.write("**Natural Language Entry:**")
+        st.info("💡 Use first names or partial names, e.g., \"Lukas 2G 1A, Felix 1G, Michael hat trick\"")
+
+        with st.form("quick_scorer_entry"):
+            scorers_text = st.text_area(
+                "Scorers",
+                placeholder="e.g., Lukas 2G 1A, Felix 1G, Michael 1 goal 2 assists",
+                height=100,
+                help="Formats: '2G 1A', '1 goal', 'hat trick', '2 goals 1 assist'"
+            )
+
+            col_btn1, col_btn2 = st.columns([1, 1])
+            with col_btn1:
+                if st.form_submit_button("← Back", use_container_width=True):
+                    st.session_state.wizard_step = 1
+                    st.rerun()
+            with col_btn2:
+                if st.form_submit_button("Parse & Match Players →", use_container_width=True):
+                    if scorers_text.strip():
+                        from src.quick_game_entry import parse_scorers_text, validate_score
+
+                        # Parse the text
+                        parsed = parse_scorers_text(scorers_text)
+
+                        # Validate that goals match score
+                        is_valid, error_msg = validate_score(parsed, total_goals)
+
+                        if is_valid:
+                            # Store for matching step
+                            st.session_state.quick_parsed = parsed
+                            st.session_state.quick_scorers_text = scorers_text
+                            st.session_state.quick_entry_step = "matching"
+                            st.rerun()
+                        else:
+                            st.error(f"⚠️ {error_msg}")
+                    else:
+                        # No scorers entered - skip
+                        st.session_state.wizard_game_data["scorers_text"] = ""
+                        st.session_state.wizard_game_data["parsed_scorers"] = {}
+                        st.session_state.wizard_step = 3
+                        st.rerun()
+
+        # Player matching step
+        if st.session_state.get("quick_entry_step") == "matching":
+            st.divider()
+            st.write("**🔗 Match Players:**")
+            st.write("Link the parsed names to actual players from your roster:")
+
+            parsed = st.session_state.quick_parsed
+
+            # Initialize player matches if not exists
+            if "quick_player_matches" not in st.session_state:
+                st.session_state.quick_player_matches = {}
+
+                # Try to auto-match players by partial name
+                for parsed_name in parsed.keys():
+                    # Find players whose full name contains the parsed name (case-insensitive)
+                    matches = [p["name"] for p in forwards_defenders
+                              if parsed_name.lower() in p["name"].lower()]
+                    if len(matches) == 1:
+                        # Auto-match if only one match
+                        st.session_state.quick_player_matches[parsed_name] = matches[0]
+
+            all_matched = True
+            for parsed_name, stats in parsed.items():
+                col_parsed, col_arrow, col_select = st.columns([2, 1, 3])
+
+                with col_parsed:
+                    st.write(f"**{parsed_name}**")
+                    st.caption(f"{stats['goals']}G {stats['assists']}A")
+
+                with col_arrow:
+                    st.write("→")
+
+                with col_select:
+                    # Find potential matches
+                    potential_matches = [p["name"] for p in forwards_defenders
+                                       if parsed_name.lower() in p["name"].lower()]
+
+                    if parsed_name in st.session_state.quick_player_matches:
+                        default_index = player_names.index(st.session_state.quick_player_matches[parsed_name]) + 1
+                    elif potential_matches:
+                        default_index = player_names.index(potential_matches[0]) + 1
+                    else:
+                        default_index = 0
+                        all_matched = False
+
+                    matched = st.selectbox(
+                        f"Match for {parsed_name}",
+                        ["❌ Not matched"] + player_names,
+                        index=default_index,
+                        key=f"match_{parsed_name}",
+                        label_visibility="collapsed"
+                    )
+
+                    if matched != "❌ Not matched":
+                        st.session_state.quick_player_matches[parsed_name] = matched
+                    elif parsed_name in st.session_state.quick_player_matches:
+                        all_matched = False
+
+            st.divider()
+            col_btn1, col_btn2 = st.columns([1, 1])
+            with col_btn1:
+                if st.button("← Edit Text", use_container_width=True):
+                    st.session_state.quick_entry_step = None
+                    st.session_state.quick_player_matches = {}
+                    st.rerun()
+            with col_btn2:
+                if st.button("Confirm & Continue →", use_container_width=True, type="primary", disabled=not all_matched):
+                    # Apply matches and create wizard_player_stats
+                    if "wizard_player_stats" not in st.session_state:
+                        st.session_state.wizard_player_stats = {}
+
+                    for parsed_name, full_name in st.session_state.quick_player_matches.items():
+                        if parsed_name in parsed:
+                            stats = parsed[parsed_name]
+                            st.session_state.wizard_player_stats[full_name] = {
+                                "goals": stats.get("goals", 0),
+                                "assists": stats.get("assists", 0),
+                                "shots": 0,
+                                "plus_minus": 0,
+                                "pim": 0,
+                                "hits": 0,
+                                "blocked_shots": 0
+                            }
+
+                    # Store in game data
+                    st.session_state.wizard_game_data["scorers_text"] = st.session_state.quick_scorers_text
+                    st.session_state.wizard_game_data["parsed_scorers"] = parsed
+
+                    # Clean up temp state
+                    st.session_state.quick_entry_step = None
+                    st.session_state.quick_player_matches = {}
+                    st.session_state.quick_parsed = None
+
+                    st.session_state.wizard_step = 3
+                    st.rerun()
+
+        return
+
+    # Goal-by-Goal Mode (existing code)
     # Initialize goal-by-goal tracking
     if "wizard_goals" not in st.session_state:
         st.session_state.wizard_goals = []
@@ -445,6 +630,81 @@ def _render_step3(players):
                             "blocked_shots": blocked
                         }
 
+    # Goalie section (for Quick Text Entry mode, otherwise populated in Step 2)
+    st.divider()
+    st.write("### 🥅 Goalies")
+    st.write("**Who played in net? (Standard game: 60 minutes total)**")
+
+    goalies = [p for p in players if p["position"] == "Goalie"]
+    goalie_names = [g["name"] for g in goalies]
+
+    # Initialize goalie tracking
+    if "wizard_goalie_list" not in st.session_state:
+        st.session_state.wizard_goalie_list = []
+
+    # Add goalie form
+    if len(st.session_state.wizard_goalie_list) < len(goalies):
+        with st.form("add_goalie_form_step3"):
+            col1, col2, col3 = st.columns([2, 2, 1])
+
+            available_goalies = [g for g in goalie_names
+                                if g not in [gg["name"] for gg in st.session_state.wizard_goalie_list]]
+
+            with col1:
+                goalie_to_add = st.selectbox(
+                    "Select goalie",
+                    [""] + available_goalies,
+                    key="goalie_to_add_step3"
+                )
+
+            with col2:
+                minutes = st.number_input(
+                    "Minutes played",
+                    min_value=1,
+                    max_value=60,
+                    value=60,
+                    key="goalie_minutes_step3",
+                    help="Standard game: 60 minutes"
+                )
+
+            with col3:
+                st.write("")  # Spacer
+                st.write("")  # Spacer
+                if st.form_submit_button("➕ Add", use_container_width=True):
+                    if goalie_to_add:
+                        # Check total minutes don't exceed 60
+                        total_minutes = sum([g["minutes"] for g in st.session_state.wizard_goalie_list])
+                        if total_minutes + minutes > 60:
+                            st.error(f"Total minutes would exceed 60! Currently: {total_minutes} min")
+                        else:
+                            st.session_state.wizard_goalie_list.append({
+                                "name": goalie_to_add,
+                                "minutes": minutes
+                            })
+                            st.rerun()
+
+    # Show added goalies
+    if st.session_state.wizard_goalie_list:
+        st.write("**Goalies added:**")
+        total_minutes = 0
+        for idx, goalie_info in enumerate(st.session_state.wizard_goalie_list):
+            col1, col2 = st.columns([4, 1])
+            with col1:
+                st.write(f"- **{goalie_info['name']}**: {goalie_info['minutes']} minutes")
+                total_minutes += goalie_info['minutes']
+            with col2:
+                if st.button("🗑️", key=f"remove_goalie_step3_{idx}", use_container_width=True):
+                    st.session_state.wizard_goalie_list.pop(idx)
+                    st.rerun()
+
+        # Show total minutes
+        if total_minutes < 60:
+            st.warning(f"⚠️ Total: {total_minutes} min (Standard game: 60 min)")
+        elif total_minutes == 60:
+            st.success(f"✓ Total: {total_minutes} minutes")
+        else:
+            st.error(f"❌ Total: {total_minutes} min exceeds 60!")
+
     st.divider()
     col_btn1, col_btn2 = st.columns([1, 1])
     with col_btn1:
@@ -483,35 +743,47 @@ def _render_step4(players):
 
             st.write(f"**{goalie_name}** - {minutes} minutes")
 
-            shots_against = st.number_input(
-                f"Shots Against",
-                min_value=0,
-                max_value=100,
-                value=st.session_state.wizard_goalie_stats.get(goalie_name, {}).get("shots_against", 0),
-                key=f"shots_{goalie_name}",
-                help=f"Total shots this goalie faced in {minutes} minutes"
-            )
+            col_shots, col_goals = st.columns(2)
 
-            # Calculate goals against proportionally based on minutes
-            goals_against_total = st.session_state.wizard_game_data['score_them']
+            with col_shots:
+                shots_against = st.number_input(
+                    f"Shots Against",
+                    min_value=0,
+                    max_value=100,
+                    value=st.session_state.wizard_goalie_stats.get(goalie_name, {}).get("shots_against", 0),
+                    key=f"shots_{goalie_name}",
+                    help=f"Total shots this goalie faced in {minutes} minutes"
+                )
 
-            # If only one goalie, they face all goals
-            if len(st.session_state.wizard_goalie_list) == 1:
-                goals_against = goals_against_total
-            else:
-                # Distribute goals proportionally (simplified - in reality you'd track per goalie)
-                goals_against = round(goals_against_total * (minutes / 60))
+            with col_goals:
+                # Default: distribute goals proportionally if multiple goalies
+                goals_against_total = st.session_state.wizard_game_data['score_them']
+                if len(st.session_state.wizard_goalie_list) == 1:
+                    default_goals = goals_against_total
+                else:
+                    default_goals = round(goals_against_total * (minutes / 60))
+
+                goals_against = st.number_input(
+                    f"Goals Against",
+                    min_value=0,
+                    max_value=goals_against_total,
+                    value=st.session_state.wizard_goalie_stats.get(goalie_name, {}).get("goals_against", default_goals),
+                    key=f"goals_{goalie_name}",
+                    help=f"Goals scored against this goalie (Total game: {goals_against_total})"
+                )
 
             # Calculate and show save percentage
             if shots_against > 0:
                 from src.game_wizard import calculate_save_percentage
                 save_pct = calculate_save_percentage(shots_against, goals_against)
-                st.metric("Calculated Save %", f"{save_pct:.3f}", help=f"Based on {goals_against} goals against")
+                st.metric("Calculated Save %", f"{save_pct:.3f}",
+                         help=f"Saves: {shots_against - goals_against} / Shots: {shots_against}")
             else:
-                st.info("Enter shots to calculate save %")
+                st.info("Enter shots and goals to calculate save %")
 
             shots_data[goalie_name] = {
                 "shots_against": shots_against,
+                "goals_against": goals_against,
                 "minutes": minutes
             }
 
@@ -559,10 +831,11 @@ def _render_step5(db):
     if st.session_state.wizard_goalie_stats:
         for goalie_name, stats in st.session_state.wizard_goalie_stats.items():
             from src.game_wizard import calculate_save_percentage
-            save_pct = calculate_save_percentage(stats['shots_against'],
-                                                 st.session_state.wizard_game_data['score_them'])
-            st.write(f"- **{goalie_name}:** {stats['shots_against']} shots against, "
-                    f"{save_pct:.3f} save% (calculated)")
+            goals_against = stats.get('goals_against', st.session_state.wizard_game_data['score_them'])
+            save_pct = calculate_save_percentage(stats['shots_against'], goals_against)
+            saves = stats['shots_against'] - goals_against
+            st.write(f"- **{goalie_name}:** {stats['shots_against']} shots, {goals_against} goals against, "
+                    f"{saves} saves → {save_pct:.3f} save%")
     else:
         st.write("- No goalie stats entered")
 

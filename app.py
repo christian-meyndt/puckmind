@@ -234,27 +234,28 @@ if "active_tab" not in st.session_state:
 # Database connection (shared across tabs)
 db = get_db()
 
-# Custom tab navigation (allows programmatic control)
+# Custom tab navigation using buttons (allows programmatic control)
 st.write("")  # Spacing
-selected_tab = st.radio(
-    "Navigation",
-    ["🏠 Home", "💬 Chat", "📊 Data Management"],
-    horizontal=True,
-    key="tab_selector",
-    label_visibility="collapsed"
-)
 
-# Map display name to internal name
-tab_mapping = {
-    "🏠 Home": "home",
-    "💬 Chat": "chat",
-    "📊 Data Management": "data"
-}
+col1, col2, col3 = st.columns(3)
 
-# Update session state if user clicked a different tab
-current_tab = tab_mapping[selected_tab]
-if st.session_state.active_tab != current_tab:
-    st.session_state.active_tab = current_tab
+with col1:
+    if st.button("🏠 Home", key="nav_home", use_container_width=True,
+                 type="primary" if st.session_state.active_tab == "home" else "secondary"):
+        st.session_state.active_tab = "home"
+        st.rerun()
+
+with col2:
+    if st.button("💬 Chat", key="nav_chat", use_container_width=True,
+                 type="primary" if st.session_state.active_tab == "chat" else "secondary"):
+        st.session_state.active_tab = "chat"
+        st.rerun()
+
+with col3:
+    if st.button("📊 Data Management", key="nav_data", use_container_width=True,
+                 type="primary" if st.session_state.active_tab == "data" else "secondary"):
+        st.session_state.active_tab = "data"
+        st.rerun()
 
 st.divider()
 
@@ -317,154 +318,281 @@ elif st.session_state.active_tab == "data":
                 else:
                     st.error("Please enter opponent and date")
 
+    # View mode toggle
+    st.write("")
+    view_mode = st.radio(
+        "View Mode",
+        ["📋 List View", "📅 Calendar View"],
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+
     # Show upcoming games
-    from src.schedule import get_upcoming_games
+    from src.schedule import get_upcoming_games, get_all_scheduled_games
+    from datetime import datetime
+    import calendar
 
-    upcoming = get_upcoming_games(db, limit=10)
+    if "Calendar" in view_mode:
+        # Calendar View
+        st.write("**📅 Calendar View:**")
 
-    if upcoming:
-        st.write("**Upcoming Games:**")
-        for game in upcoming:
-            with st.expander(f"{'vs' if game.get('home', True) else 'at'} {game['opponent']} - {game['date_str']}", expanded=False):
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.write(f"📅 **Date:** {game['date_str']}")
+        # Month selector
+        current_date = datetime.now()
+        col_month, col_year = st.columns(2)
+        with col_month:
+            selected_month = st.selectbox(
+                "Month",
+                range(1, 13),
+                index=current_date.month - 1,
+                format_func=lambda x: calendar.month_name[x]
+            )
+        with col_year:
+            selected_year = st.selectbox(
+                "Year",
+                range(current_date.year, current_date.year + 2),
+                index=0
+            )
+
+        # Get all games for selected month
+        all_games = get_all_scheduled_games(db)
+        month_games = [
+            g for g in all_games
+            if g["date"].month == selected_month and g["date"].year == selected_year
+            and g.get("status") != "cancelled"
+        ]
+
+        # Create calendar
+        cal = calendar.monthcalendar(selected_year, selected_month)
+
+        st.write(f"### {calendar.month_name[selected_month]} {selected_year}")
+
+        # Header row
+        cols = st.columns(7)
+        days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        for idx, day in enumerate(days):
+            with cols[idx]:
+                st.markdown(f"**{day}**")
+
+        # Calendar grid
+        for week in cal:
+            cols = st.columns(7)
+            for idx, day in enumerate(week):
+                with cols[idx]:
+                    if day == 0:
+                        st.write("")  # Empty cell
+                    else:
+                        # Check if there's a game on this day
+                        day_games = [
+                            g for g in month_games
+                            if g["date"].day == day
+                        ]
+
+                        if day_games:
+                            # Show day with game indicator
+                            st.markdown(f"**{day}** 🏒")
+                            for game in day_games:
+                                home_away = "vs" if game.get("home", True) else "@"
+                                st.caption(f"{game['time']} {home_away} {game['opponent'][:8]}...")
+                        else:
+                            st.write(f"{day}")
+
+        st.divider()
+
+        # List of games for selected month below calendar
+        if month_games:
+            st.write("**Games this month:**")
+            for game in sorted(month_games, key=lambda g: g["date"]):
+                with st.expander(f"{game['date'].strftime('%b %d')} - {'vs' if game.get('home', True) else 'at'} {game['opponent']}", expanded=False):
                     st.write(f"🕐 **Time:** {game['time']}")
                     if game.get("location"):
                         st.write(f"📍 **Location:** {game['location']}")
-                with col2:
-                    home_away = "🏠 Home Game" if game.get("home", True) else "✈️ Away Game"
-                    st.write(home_away)
+                    if game.get("notes"):
+                        st.write(f"📝 **Notes:** {game['notes']}")
+        else:
+            st.info(f"No games scheduled in {calendar.month_name[selected_month]}")
 
-                    if game['days_until'] == 0:
-                        st.info("🔥 **TODAY!**")
-                    elif game['days_until'] == 1:
-                        st.info("⚡ **Tomorrow!**")
-                    else:
-                        st.write(f"📆 In {game['days_until']} days")
+    else:
+        # List View (existing code)
+        upcoming = get_upcoming_games(db, limit=10)
 
-                if game.get("notes"):
-                    st.write(f"📝 **Notes:** {game['notes']}")
+        if upcoming:
+            st.write("**Upcoming Games:**")
+            for game in upcoming:
+                with st.expander(f"{'vs' if game.get('home', True) else 'at'} {game['opponent']} - {game['date_str']}", expanded=False):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write(f"📅 **Date:** {game['date_str']}")
+                        st.write(f"🕐 **Time:** {game['time']}")
+                        if game.get("location"):
+                            st.write(f"📍 **Location:** {game['location']}")
+                    with col2:
+                        home_away = "🏠 Home Game" if game.get("home", True) else "✈️ Away Game"
+                        st.write(home_away)
 
-                st.divider()
+                        if game['days_until'] == 0:
+                            st.info("🔥 **TODAY!**")
+                        elif game['days_until'] == 1:
+                            st.info("⚡ **Tomorrow!**")
+                        else:
+                            st.write(f"📆 In {game['days_until']} days")
 
-                # Attendance tracking section
-                st.write("**👥 Attendance Tracking:**")
+                    if game.get("notes"):
+                        st.write(f"📝 **Notes:** {game['notes']}")
 
-                from src.attendance import get_roster_status
+                    st.divider()
 
-                game_id = game["game_id"]
-                roster = get_roster_status(db, game_id)
+                    # Attendance tracking section
+                    st.write("**👥 Attendance Tracking:**")
 
-                if roster["status"] == "success":
-                    summary = roster["summary"]
+                    from src.attendance import get_roster_status
 
-                    # Show summary metrics
-                    col_conf, col_dec, col_pend = st.columns(3)
-                    with col_conf:
-                        st.metric("✅ Confirmed", summary["confirmed_count"])
-                    with col_dec:
-                        st.metric("❌ Declined", summary["declined_count"])
-                    with col_pend:
-                        st.metric("⏳ Pending", summary["pending_count"])
+                    game_id = game["game_id"]
+                    roster = get_roster_status(db, game_id)
 
-                    # Show position breakdown
-                    st.caption(f"Confirmed: {summary['confirmed_forwards']}F / {summary['confirmed_defenders']}D / {summary['confirmed_goalies']}G")
+                    if roster["status"] == "success":
+                        summary = roster["summary"]
 
-                    # Show warnings/alerts
-                    if roster["alerts"]:
-                        for alert in roster["alerts"]:
-                            st.error(alert)
-                    if roster["warnings"]:
-                        for warning in roster["warnings"]:
-                            st.warning(warning)
+                        # Show summary metrics
+                        col_conf, col_dec, col_pend = st.columns(3)
+                        with col_conf:
+                            st.metric("✅ Confirmed", summary["confirmed_count"])
+                        with col_dec:
+                            st.metric("❌ Declined", summary["declined_count"])
+                        with col_pend:
+                            st.metric("⏳ Pending", summary["pending_count"])
 
-                    if roster["ready_to_play"]:
-                        st.success("✅ Roster looks good!")
+                        # Show position breakdown
+                        st.caption(f"Confirmed: {summary['confirmed_forwards']}F / {summary['confirmed_defenders']}D / {summary['confirmed_goalies']}G")
 
-                    # Quick attendance form
-                    with st.form(f"attendance_{game_id}"):
-                        st.write("**Quick Confirm:**")
-                        col_player, col_status = st.columns([2, 1])
+                        # Show warnings/alerts
+                        if roster["alerts"]:
+                            for alert in roster["alerts"]:
+                                st.error(alert)
+                        if roster["warnings"]:
+                            for warning in roster["warnings"]:
+                                st.warning(warning)
 
-                        with col_player:
-                            selected_player = st.selectbox(
-                                "Player",
-                                [p["name"] for p in players],
-                                key=f"attend_player_{game_id}"
-                            )
-                        with col_status:
-                            attend_status = st.radio(
-                                "Status",
-                                ["Coming ✅", "Not Coming ❌"],
-                                horizontal=True,
-                                key=f"attend_status_{game_id}"
-                            )
+                        if roster["ready_to_play"]:
+                            st.success("✅ Roster looks good!")
 
-                        if st.form_submit_button("Update Attendance", use_container_width=True):
-                            from src.attendance import set_attendance
+                        # Quick attendance form
+                        with st.form(f"attendance_{game_id}"):
+                            st.write("**Quick Confirm:**")
+                            col_player, col_status = st.columns([2, 1])
 
-                            status = "confirmed" if "Coming" in attend_status else "declined"
-                            result = set_attendance(db, game_id, selected_player, status)
+                            with col_player:
+                                selected_player = st.selectbox(
+                                    "Player",
+                                    [p["name"] for p in players],
+                                    key=f"attend_player_{game_id}"
+                                )
+                            with col_status:
+                                attend_status = st.radio(
+                                    "Status",
+                                    ["Coming ✅", "Not Coming ❌"],
+                                    horizontal=True,
+                                    key=f"attend_status_{game_id}"
+                                )
 
-                            if result["status"] == "success":
-                                st.success(result["message"])
-                                st.rerun()
-                            else:
-                                st.error(result["message"])
+                            if st.form_submit_button("Update Attendance", use_container_width=True):
+                                from src.attendance import set_attendance
 
-                    # View full roster button
-                    if st.button(f"📋 View Full Roster", key=f"roster_{game_id}", use_container_width=True):
-                        st.session_state[f"show_roster_{game_id}"] = True
+                                status = "confirmed" if attend_status == "Coming ✅" else "declined"
+                                result = set_attendance(db, game_id, selected_player, status)
+
+                                if result["status"] == "success":
+                                    st.success(result["message"])
+                                    st.rerun()
+                                else:
+                                    st.error(result["message"])
+
+                        # View full roster button
+                        if st.button(f"📋 View Full Roster", key=f"roster_{game_id}", use_container_width=True):
+                            st.session_state[f"show_roster_{game_id}"] = True
+                            st.rerun()
+
+                        # Show full roster if requested
+                        if st.session_state.get(f"show_roster_{game_id}", False):
+                            from src.attendance import get_attendance_for_game
+
+                            full_attendance = get_attendance_for_game(db, game_id)
+
+                            if full_attendance["confirmed"]:
+                                st.write("**✅ Confirmed:**")
+                                for p in full_attendance["confirmed"]:
+                                    st.write(f"- {p['name']} (#{p['number']}, {p['position']})")
+
+                            if full_attendance["declined"]:
+                                st.write("**❌ Declined:**")
+                                for p in full_attendance["declined"]:
+                                    notes_text = f" - {p['notes']}" if p.get('notes') else ""
+                                    st.write(f"- {p['name']} (#{p['number']}, {p['position']}){notes_text}")
+
+                            if full_attendance["pending"]:
+                                st.write("**⏳ Pending Response:**")
+                                for p in full_attendance["pending"]:
+                                    st.write(f"- {p['name']} (#{p['number']}, {p['position']})")
+
+                    # Cancel game button
+                    st.write("")  # Spacing
+                    if st.button(f"🗑️ Cancel This Game", key=f"cancel_{game_id}", use_container_width=True, type="secondary"):
+                        st.session_state[f"confirm_cancel_{game_id}"] = True
                         st.rerun()
 
-                    # Show full roster if requested
-                    if st.session_state.get(f"show_roster_{game_id}", False):
-                        from src.attendance import get_attendance_for_game
-
-                        full_attendance = get_attendance_for_game(db, game_id)
-
-                        if full_attendance["confirmed"]:
-                            st.write("**✅ Confirmed:**")
-                            for p in full_attendance["confirmed"]:
-                                st.write(f"- {p['name']} (#{p['number']}, {p['position']})")
-
-                        if full_attendance["declined"]:
-                            st.write("**❌ Declined:**")
-                            for p in full_attendance["declined"]:
-                                notes_text = f" - {p['notes']}" if p.get('notes') else ""
-                                st.write(f"- {p['name']} (#{p['number']}, {p['position']}){notes_text}")
-
-                        if full_attendance["pending"]:
-                            st.write("**⏳ Pending Response:**")
-                            for p in full_attendance["pending"]:
-                                st.write(f"- {p['name']} (#{p['number']}, {p['position']})")
+                    # Confirmation dialog
+                    if st.session_state.get(f"confirm_cancel_{game_id}", False):
+                        st.warning("⚠️ Are you sure you want to cancel this game?")
+                        col_yes, col_no = st.columns(2)
+                        with col_yes:
+                            if st.button("Yes, Cancel Game", key=f"confirm_yes_{game_id}", use_container_width=True):
+                                from src.schedule import cancel_scheduled_game
+                                result = cancel_scheduled_game(db, game_id, "Cancelled by user")
+                                if result["status"] == "success":
+                                    st.success(result["message"])
+                                    st.session_state[f"confirm_cancel_{game_id}"] = False
+                                    st.rerun()
+                                else:
+                                    st.error(result["message"])
+                        with col_no:
+                            if st.button("No, Keep It", key=f"confirm_no_{game_id}", use_container_width=True):
+                                st.session_state[f"confirm_cancel_{game_id}"] = False
+                                st.rerun()
 
             st.divider()
 
-        # Calendar export
-        if st.button("📥 Export Calendar (.ics)", use_container_width=True):
-            from src.schedule import generate_ics_calendar
+            # Calendar export for list view (outside the loop)
+            if st.button("📥 Export Calendar (.ics)", use_container_width=True, key="export_list"):
+                from src.schedule import generate_ics_calendar
 
-            ics_content = generate_ics_calendar(upcoming, "PuckMind Team")
-            st.download_button(
-                label="Download Calendar",
-                data=ics_content,
-                file_name="puckmind_schedule.ics",
-                mime="text/calendar",
-                use_container_width=True
-            )
-    else:
-        st.info("No upcoming games scheduled")
+                ics_content = generate_ics_calendar(upcoming, "PuckMind Team")
+                st.download_button(
+                    label="Download Calendar",
+                    data=ics_content,
+                    file_name="puckmind_schedule.ics",
+                    mime="text/calendar",
+                    use_container_width=True
+                )
+        else:
+            st.info("No upcoming games scheduled")
 
     st.divider()
 
     # Add Game Result - Guided Wizard (extracted to separate module)
+    # Scroll anchor for quick actions
+    if st.session_state.get("scroll_to") == "game_wizard":
+        st.markdown('<div id="game_wizard"></div>', unsafe_allow_html=True)
+        st.session_state.scroll_to = None
+
     render_game_wizard(db, players)
 
     st.divider()
 
     # Update Player Availability
+    # Scroll anchor for quick actions
+    if st.session_state.get("scroll_to") == "availability":
+        st.markdown('<div id="availability"></div>', unsafe_allow_html=True)
+        st.session_state.scroll_to = None
+
     st.subheader("🏥 Update Player Availability")
 
     col1, col2 = st.columns([2, 1])

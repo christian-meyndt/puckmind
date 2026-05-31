@@ -187,6 +187,27 @@ Required in `.env`:
   - [x] Eliminated code duplication
   - [x] Proper module structure (database/, ui/)
   - [x] app.py reduced from 800+ to 506 lines
+- [x] **European Points System** ✅
+  - [x] W=3pts, OTW=2pts, OTL=1pt, L=0pts
+  - [x] Dashboard shows 5 metrics (Wins, OT/SO Wins, Losses, OT/SO Losses, Points)
+  - [x] Game wizard result type selection
+  - [x] Seed data with realistic European games
+- [x] **Schedule Calendar View** ✅
+  - [x] Toggle between List and Calendar views
+  - [x] Monthly calendar grid with game indicators
+  - [x] Month/year selector
+- [x] **Enhanced Game Wizard** ✅
+  - [x] Quick Text Entry mode with player matching
+  - [x] Natural language parser ("Lukas 2G 1A")
+  - [x] Goalie stats with shots and goals against
+  - [x] Correct save % calculation
+- [x] **Attendance Tracking Improvements** ✅
+  - [x] Fixed "Not Coming" bug (was marking as confirmed)
+  - [x] Days until calculation fixed (date-based)
+- [x] **Ice Time Analysis Tool** ✅
+  - [x] Agent tool: analyze_ice_time()
+  - [x] Tracks age, status (veteran/regular/developing), avg_ice_time
+  - [x] Recommends developing players needing more opportunities
 - [ ] Google Cloud Agent Builder deployment
 - [ ] Demo video recorded
 - [ ] Devpost submission completed

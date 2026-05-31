@@ -41,27 +41,38 @@ def _render_main_content(db):
     st.subheader("📊 Current Season")
 
     games = list(db.games.find({}, {"_id": 0, "result": 1}))
-    wins = sum(1 for g in games if g["result"] == "W")
-    losses = sum(1 for g in games if g["result"] == "L")
-    draws = sum(1 for g in games if g["result"] == "D")
-    total_games = len(games)
-    points = wins * 2 + draws
 
-    col_w, col_l, col_d, col_p = st.columns(4)
+    # European points system:
+    # W = Regular win (3 pts), OTW = OT/SO win (2 pts), OTL = OT/SO loss (1 pt), L = Regular loss (0 pts)
+    # Legacy: D = Draw (1 pt, treated as OTL for compatibility)
+    reg_wins = sum(1 for g in games if g["result"] == "W")
+    ot_wins = sum(1 for g in games if g["result"] == "OTW")
+    ot_losses = sum(1 for g in games if g["result"] in ["OTL", "D"])
+    losses = sum(1 for g in games if g["result"] == "L")
+    total_games = len(games)
+
+    # Calculate points (European system)
+    points = reg_wins * 3 + ot_wins * 2 + ot_losses * 1
+
+    # Display metrics in 5 columns
+    col_w, col_otw, col_l, col_otl, col_p = st.columns(5)
 
     with col_w:
-        st.metric("Wins", wins, delta=None, delta_color="normal")
+        st.metric("Wins", reg_wins, delta=None, delta_color="normal", help="Regular time wins (3 points)")
+    with col_otw:
+        st.metric("OT/SO Wins", ot_wins, delta=None, delta_color="normal", help="Overtime/Shootout wins (2 points)")
     with col_l:
-        st.metric("Losses", losses, delta=None, delta_color="inverse")
-    with col_d:
-        st.metric("Draws", draws)
+        st.metric("Losses", losses, delta=None, delta_color="inverse", help="Regular time losses (0 points)")
+    with col_otl:
+        st.metric("OT/SO Losses", ot_losses, help="Overtime/Shootout losses (1 point)")
     with col_p:
-        st.metric("Points", points, help="2 points per win, 1 per draw")
+        st.metric("Points", points, help=f"{reg_wins}×3 + {ot_wins}×2 + {ot_losses}×1 = {points} pts")
 
-    # Win percentage
+    # Win percentage (includes all wins: regular + OT/SO)
     if total_games > 0:
-        win_pct = (wins / total_games) * 100
-        st.progress(wins / total_games, text=f"Win Rate: {win_pct:.1f}%")
+        total_wins = reg_wins + ot_wins
+        win_pct = (total_wins / total_games) * 100
+        st.progress(total_wins / total_games, text=f"Win Rate: {win_pct:.1f}% ({total_wins}/{total_games})")
     else:
         st.info("No games recorded yet. Start by adding a game!")
 
@@ -83,14 +94,20 @@ def _render_main_content(db):
             score = f"{game['score_us']}-{game['score_them']}"
             opponent = game["opponent"]
 
-            # Color based on result
+            # Color based on result (European system)
             if result == "W":
                 badge = "🟢"
                 result_text = "Win"
+            elif result == "OTW":
+                badge = "🟢"
+                result_text = "OT/SO Win"
+            elif result == "OTL":
+                badge = "🟡"
+                result_text = "OT/SO Loss"
             elif result == "L":
                 badge = "🔴"
                 result_text = "Loss"
-            else:
+            else:  # Legacy "D" for Draw
                 badge = "🟡"
                 result_text = "Draw"
 
@@ -213,16 +230,19 @@ def _render_quick_actions():
     with col1:
         if st.button("➕ Add Game", use_container_width=True, type="primary", key="qa_add_game"):
             st.session_state.active_tab = "data"
+            st.session_state.scroll_to = "game_wizard"
             st.rerun()
 
     with col2:
         if st.button("👥 Update Availability", use_container_width=True, key="qa_availability"):
             st.session_state.active_tab = "data"
+            st.session_state.scroll_to = "availability"
             st.rerun()
 
     with col3:
         if st.button("📊 View Stats", use_container_width=True, key="qa_stats"):
             st.session_state.active_tab = "chat"
+            st.session_state.trigger_query = "Show me our team statistics"
             st.rerun()
 
     st.divider()

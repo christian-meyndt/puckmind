@@ -94,7 +94,8 @@ def quick_record_game(
     scorers_text: str = "",
     goalie_name: str = None,
     shots_against: int = 0,
-    notes: str = ""
+    notes: str = "",
+    overtime: bool = False
 ) -> Dict:
     """
     Quick game entry - bypasses wizard for fast recording.
@@ -108,14 +109,20 @@ def quick_record_game(
         goalie_name: Name of goalie who played (optional)
         shots_against: Shots against the goalie (optional)
         notes: Game notes (optional)
+        overtime: True if game went to OT/shootout (European scoring: W=3, OTW=2, OTL=1, L=0)
 
     Returns:
         Result dictionary with status and summary
     """
     from src.game_wizard import update_all_game_stats
 
-    # Determine result
-    result = "W" if score_us > score_them else ("L" if score_us < score_them else "D")
+    # Determine result (European points system)
+    if score_us > score_them:
+        result = "OTW" if overtime else "W"
+    elif score_us < score_them:
+        result = "OTL" if overtime else "L"
+    else:
+        result = "D"  # Tied (shouldn't happen in European hockey, but legacy support)
 
     # Parse scorer text
     player_stats = {}

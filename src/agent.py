@@ -77,17 +77,30 @@ def get_recent_games(limit: int = 5) -> list[dict]:
 
 
 def get_season_record() -> dict:
-    """Returns the current season record (wins, losses, draws)."""
+    """
+    Returns the current season record with European points system.
+    European system: W=3pts, OTW=2pts, OTL=1pt, L=0pts
+    """
     games = list(db.games.find({}, {"_id": 0, "result": 1}))
-    wins   = sum(1 for g in games if g["result"] == "W")
-    losses = sum(1 for g in games if g["result"] == "L")
-    draws  = sum(1 for g in games if g["result"] == "D")
+    reg_wins = sum(1 for g in games if g["result"] == "W")
+    ot_wins = sum(1 for g in games if g["result"] == "OTW")
+    ot_losses = sum(1 for g in games if g["result"] in ["OTL", "D"])  # D for legacy compatibility
+    reg_losses = sum(1 for g in games if g["result"] == "L")
+
+    total_wins = reg_wins + ot_wins
+    total_losses = reg_losses + ot_losses
+    points = reg_wins * 3 + ot_wins * 2 + ot_losses * 1
+
     return {
-        "wins": wins,
-        "losses": losses,
-        "draws": draws,
+        "wins": total_wins,
+        "regular_wins": reg_wins,
+        "ot_wins": ot_wins,
+        "losses": total_losses,
+        "regular_losses": reg_losses,
+        "ot_losses": ot_losses,
         "total_games": len(games),
-        "points": wins * 2 + draws,
+        "points": points,
+        "points_breakdown": f"{reg_wins}W (3pts) + {ot_wins}OTW (2pts) + {ot_losses}OTL (1pt) = {points} pts"
     }
 
 
@@ -381,7 +394,74 @@ def get_top_defenders() -> list[dict]:
     return defenders
 
 
-def record_game_quick(opponent: str, score_us: int, score_them: int, scorers_text: str = "", goalie_name: str = None, shots_against: int = 0) -> dict:
+def analyze_ice_time() -> dict:
+    """
+    Analyze ice time distribution and recommend players who need more playing time.
+    Identifies developing players with low ice time who could benefit from more opportunities.
+
+    Returns:
+        Analysis with recommendations for ice time adjustments
+    """
+    players = list(db.players.find(
+        {"position": {"$ne": "Goalie"}, "available": True},
+        {"_id": 0, "name": 1, "number": 1, "position": 1, "age": 1, "status": 1,
+         "avg_ice_time": 1, "games_played": 1, "goals": 1, "assists": 1,
+         "plus_minus": 1, "shooting_pct": 1}
+    ))
+
+    # Find developing players with low ice time
+    developing = [p for p in players if p.get("status") == "developing"]
+    developing_sorted = sorted(developing, key=lambda p: p.get("avg_ice_time", 0))
+
+    # Find players with positive stats but low ice time
+    underutilized = [
+        p for p in players
+        if p.get("avg_ice_time", 0) < 13.0  # Less than 13 min/game
+        and p.get("plus_minus", 0) >= 0  # Not negative
+        and p.get("games_played", 0) >= 5  # Minimum games
+    ]
+    underutilized_sorted = sorted(underutilized, key=lambda p: (p.get("plus_minus", 0), p.get("goals", 0) + p.get("assists", 0)), reverse=True)
+
+    # Team averages
+    total_forwards = [p for p in players if p.get("position") == "Forward"]
+    avg_ice_time_forwards = sum(p.get("avg_ice_time", 0) for p in total_forwards) / len(total_forwards) if total_forwards else 0
+
+    recommendations = []
+
+    for player in developing_sorted[:3]:  # Top 3 developing players with lowest ice time
+        ice_time = player.get("avg_ice_time", 0)
+        points = player.get("goals", 0) + player.get("assists", 0)
+        games = player.get("games_played", 0)
+
+        recommendation = {
+            "name": player["name"],
+            "number": player["number"],
+            "position": player["position"],
+            "age": player.get("age", "N/A"),
+            "current_ice_time": ice_time,
+            "team_avg_ice_time": round(avg_ice_time_forwards, 1),
+            "games_played": games,
+            "points": points,
+            "plus_minus": player.get("plus_minus", 0),
+            "reason": f"Developing player (age {player.get('age')}) averaging only {ice_time} min/game vs team avg {avg_ice_time_forwards:.1f} min"
+        }
+
+        if player.get("plus_minus", 0) >= 0:
+            recommendation["reason"] += f". Positive +/- ({player.get('plus_minus')}) shows he's reliable when on ice."
+
+        recommendations.append(recommendation)
+
+    return {
+        "status": "ok",
+        "team_avg_ice_time_forwards": round(avg_ice_time_forwards, 1),
+        "developing_players_count": len(developing),
+        "underutilized_count": len(underutilized),
+        "recommendations": recommendations,
+        "summary": f"Found {len(recommendations)} players who could benefit from more ice time. Focus on developing young players to build team depth."
+    }
+
+
+def record_game_quick(opponent: str, score_us: int, score_them: int, scorers_text: str = "", goalie_name: str = None, shots_against: int = 0, overtime: bool = False) -> dict:
     """
     Quick game entry - record a game with natural language scorer text.
     Much faster than the detailed wizard.
@@ -393,10 +473,11 @@ def record_game_quick(opponent: str, score_us: int, score_them: int, scorers_tex
         scorers_text: Natural language scorers (e.g., "Lukas 2G 1A, Felix 1G")
         goalie_name: Optional goalie name
         shots_against: Optional shots against goalie
+        overtime: True if game decided in OT/shootout (European scoring: W=3pts, OTW=2pts, OTL=1pt, L=0pts)
 
     Examples:
         record_game_quick("Eagles", 4, 2, "Lukas 2G 1A, Felix 1G, Michael 1G")
-        record_game_quick("Bears", 3, 5, "Lukas hat trick", "Markus", 42)
+        record_game_quick("Bears", 3, 4, "Lukas hat trick", "Markus", 42, overtime=True)  # OT loss, 1 point
     """
     from src.quick_game_entry import quick_record_game
 
@@ -406,6 +487,7 @@ def record_game_quick(opponent: str, score_us: int, score_them: int, scorers_tex
         score_us=score_us,
         score_them=score_them,
         scorers_text=scorers_text,
+        overtime=overtime,
         goalie_name=goalie_name,
         shots_against=shots_against
     )
@@ -485,6 +567,26 @@ def get_next_game_info() -> dict:
         "next_game": next_game,
         "message": f"Next game: {next_game['opponent']} on {next_game['date_str']} ({next_game['days_until']} days)"
     }
+
+
+def cancel_scheduled_game(game_id: str, reason: str = "") -> dict:
+    """
+    Cancel a scheduled game.
+
+    Args:
+        game_id: Scheduled game ID to cancel
+        reason: Cancellation reason (e.g., "Bad weather", "Rink unavailable")
+
+    Returns:
+        Result dictionary with status
+
+    Examples:
+        cancel_scheduled_game("game_id_123", "Rink flooded")
+        cancel_scheduled_game("game_id_456", "Opponent forfeited")
+    """
+    from src.schedule import cancel_scheduled_game as cancel_game
+
+    return cancel_game(db, game_id, reason)
 
 
 def confirm_attendance(game_id: str, player_name: str, attending: bool, notes: str = "") -> dict:
@@ -623,9 +725,17 @@ def suggest_training_exercises() -> dict:
 # ── Agent Definition ──────────────────────────────────────────
 
 SYSTEM_PROMPT = """
-You are the Hockey Scout & Team Manager Agent for an amateur ice hockey team.
+You are the Hockey Scout & Team Manager Agent for an amateur ice hockey team in Europe.
+
+**European Points System:**
+- Regular time win: 3 points (W)
+- Overtime/Shootout win: 2 points (OTW)
+- Overtime/Shootout loss: 1 point (OTL)
+- Regular time loss: 0 points (L)
+
 You help the coach and manager with:
-- **Quick game entry** - Use record_game_quick() for fast game recording (e.g., "Record 4-2 win vs Eagles, Lukas 2G 1A, Felix 1G")
+- **Quick game entry** - Use record_game_quick() for fast game recording. ALWAYS ask if the game went to overtime/shootout when recording results.
+  - Examples: "Record 4-2 win vs Eagles, Lukas 2G 1A, Felix 1G" → ask "Was this decided in regulation or OT/SO?"
 - Player statistics and availability (with proactive warnings about lineup issues)
 - Lineup suggestions with visual formatting
 - Game reports and season record
@@ -639,6 +749,14 @@ You help the coach and manager with:
 
 When a user wants to record a game quickly, use record_game_quick() with natural language scorer text.
 For detailed stat entry, direct them to the Data Management tab.
+
+**When scheduling games:**
+- If the user provides only opponent and date, ASK for the missing information:
+  - Is this a home or away game?
+  - What time is the game? (if not specified)
+  - What's the location/rink?
+- Only use the default values (home=True, time="19:00") if the user explicitly says to use defaults or you've asked and they don't provide specifics.
+- Be conversational: "Got it! A few quick questions: Is this a home or away game? And what time?"
 
 When analyzing player statistics, consider position-specific metrics:
 - **Forwards**: Focus on goals, assists, points, shooting %, faceoff %, offensive zone time
@@ -674,6 +792,7 @@ hockey_agent = Agent(
         FunctionTool(schedule_game),  # Schedule management
         FunctionTool(get_schedule),  # Get upcoming games
         FunctionTool(get_next_game_info),  # Next game info
+        FunctionTool(cancel_scheduled_game),  # Cancel scheduled game
         FunctionTool(confirm_attendance),  # NEW: Confirm/decline attendance
         FunctionTool(check_game_roster),  # NEW: Check roster status
         FunctionTool(get_game_attendance),  # NEW: Get attendance details
@@ -689,6 +808,7 @@ hockey_agent = Agent(
         FunctionTool(get_goalie_stats),
         FunctionTool(get_top_forwards),
         FunctionTool(get_top_defenders),
+        FunctionTool(analyze_ice_time),  # Ice time analysis and recommendations
     ],
 )
 
