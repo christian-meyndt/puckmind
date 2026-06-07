@@ -167,31 +167,31 @@ with st.sidebar:
 
     st.header("Example Queries")
 
-    if st.button("💬 Top forwards", use_container_width=True):
+    if st.button("💬 Top forwards", key="quick_top_forwards", use_container_width=True):
         st.session_state.trigger_query = "Show me our top forwards with offensive stats like shooting % and faceoff %"
         st.rerun()
 
-    if st.button("💬 Top defenders", use_container_width=True):
+    if st.button("💬 Top defenders", key="quick_top_defenders", use_container_width=True):
         st.session_state.trigger_query = "Who are our best defenders? Show defensive stats like blocked shots and plus/minus"
         st.rerun()
 
-    if st.button("💬 Goalie stats", use_container_width=True):
+    if st.button("💬 Goalie stats", key="quick_goalie_stats", use_container_width=True):
         st.session_state.trigger_query = "What are our goalie statistics? Show GAA and save percentage"
         st.rerun()
 
-    if st.button("💬 Player form", use_container_width=True):
+    if st.button("💬 Player form", key="quick_player_form", use_container_width=True):
         st.session_state.trigger_query = "Who's on a hot or cold streak?"
         st.rerun()
 
-    if st.button("💬 Suggest lineup", use_container_width=True):
+    if st.button("💬 Suggest lineup", key="quick_suggest_lineup", use_container_width=True):
         st.session_state.trigger_query = "Suggest a lineup for the next game"
         st.rerun()
 
-    if st.button("💬 Season prediction", use_container_width=True):
+    if st.button("💬 Season prediction", key="quick_season_prediction", use_container_width=True):
         st.session_state.trigger_query = "Predict our final standing this season"
         st.rerun()
 
-    if st.button("💬 Analyze opponent", use_container_width=True):
+    if st.button("💬 Analyze opponent", key="quick_analyze_opponent", use_container_width=True):
         st.session_state.trigger_query = "Analyze our history against EHC Eagles"
         st.rerun()
 
@@ -199,7 +199,7 @@ with st.sidebar:
 
     st.header("Quick Actions")
 
-    if st.button("🔄 Reset Chat"):
+    if st.button("🔄 Reset Chat", key="reset_chat"):
         st.session_state.messages = []
         st.session_state.agent_session = None
         st.rerun()

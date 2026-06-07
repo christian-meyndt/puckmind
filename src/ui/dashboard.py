@@ -181,7 +181,7 @@ def _render_sidebar_widgets(db):
     # Team Status
     st.subheader("👥 Team Status")
 
-    players = list(db.players.find({}, {"_id": 0, "name": 1, "available": 1, "position": 1}))
+    players = list(db.players.find({}, {"_id": 0, "name": 1, "available": 1, "position": 1, "unavailable_reason": 1}))
 
     available_count = sum(1 for p in players if p["available"])
     unavailable_count = len(players) - available_count
@@ -194,7 +194,9 @@ def _render_sidebar_widgets(db):
         unavailable = [p for p in players if not p["available"]]
         st.warning(f"⚠️ **Unavailable:**")
         for p in unavailable:
-            st.write(f"- {p['name']} ({p['position']})")
+            reason = p.get('unavailable_reason', '')
+            reason_text = f" - {reason}" if reason else ""
+            st.write(f"- {p['name']} ({p['position']}){reason_text}")
 
     st.divider()
 

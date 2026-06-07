@@ -171,9 +171,62 @@ This instant visual understanding is what makes the agent memorable!
 
 ---
 
+## Deployment
+
+**Live Demo:** Deployed on Google Cloud Run (URL available after deployment completes)
+
+See [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md) for detailed deployment instructions.
+
+**Quick Deploy:**
+```bash
+# With Docker installed
+./deploy-local.sh
+
+# Or via Google Cloud Shell
+# See DEPLOYMENT_GUIDE.md for step-by-step instructions
+```
+
+---
+
+## Testing
+
+**Run Test Suite:**
+```bash
+# Install nox
+pip install nox
+
+# Run all tests with coverage
+nox -s tests
+
+# Run quick tests
+nox -s quick_tests
+
+# Run all quality checks (tests, lint, format, type, security)
+nox -s full_check
+```
+
+**Test Coverage:**
+- 38 test cases across 6 modules
+- European points system
+- Quick game entry parser
+- Schedule management
+- Attendance tracking
+- Ice time analysis
+- Player availability
+
+See [`tests/README.md`](tests/README.md) for detailed test documentation.
+
+---
+
 ## Demo Video
 
 Coming soon - will showcase all key features in 3 minutes!
+
+---
+
+## Development
+
+**Built with modern AI-assisted development practices** using Claude Code to accelerate prototyping and iteration. All architecture decisions, feature design, integration work, and testing were directed by the developer.
 
 ---
 

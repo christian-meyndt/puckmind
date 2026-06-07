@@ -214,10 +214,17 @@ def update_player_availability(player_name: str, available: bool, reason: str = 
     if not player:
         return {"status": "error", "message": f"Player '{player_name}' not found"}
 
-    # Update availability
+    # Update availability and reason
+    update_fields = {"available": available}
+    if reason:
+        update_fields["unavailable_reason"] = reason
+    elif available:
+        # Clear reason when marking as available
+        update_fields["unavailable_reason"] = ""
+
     result = db.players.update_one(
         {"name": player["name"]},
-        {"$set": {"available": available}}
+        {"$set": update_fields}
     )
 
     status_text = "available" if available else "unavailable"
@@ -227,19 +234,23 @@ def update_player_availability(player_name: str, available: bool, reason: str = 
         "status": "ok",
         "message": f"{player['name']} marked as {status_text}{reason_text}",
         "player": player["name"],
+        "reason": reason,
         "available": available
     }
 
 
 def add_game_result(opponent: str, score_us: int, score_them: int, notes: str = "", scorers: list = None) -> dict:
     """
-    Records a new game result and updates player statistics.
+    Records a new game result and updates scorer statistics.
+    Quick entry for logging game outcomes - does NOT update goalie stats.
+    For complete stats including goalie performance, use the Game Wizard UI.
+
     Args:
         opponent:   Name of the opponent
         score_us:   Our goals
         score_them: Opponent's goals
         notes:      Optional notes about the game
-        scorers:    Optional list of goal scorers (updates their stats)
+        scorers:    Optional list of goal scorers (updates their goal count)
     """
     from datetime import datetime
     result = "W" if score_us > score_them else ("L" if score_us < score_them else "D")
@@ -259,7 +270,7 @@ def add_game_result(opponent: str, score_us: int, score_them: int, notes: str = 
     }
     db.games.insert_one(game)
 
-    # Update player statistics for scorers
+    # Update player statistics for scorers only
     stats_updated = []
     for scorer_name in scorers:
         player = db.players.find_one(
@@ -273,25 +284,10 @@ def add_game_result(opponent: str, score_us: int, score_them: int, notes: str = 
             )
             stats_updated.append(player["name"])
 
-    # Update goalie stats (simplified - assumes starting goalie played)
-    goalie = db.players.find_one({"position": "Goalie", "available": True})
-    if goalie:
-        # Update goalie record
-        if result == "W":
-            db.players.update_one(
-                {"name": goalie["name"]},
-                {"$inc": {"wins": 1, "games_played": 1}}
-            )
-        elif result == "L":
-            db.players.update_one(
-                {"name": goalie["name"]},
-                {"$inc": {"losses": 1, "games_played": 1}}
-            )
-        stats_updated.append(f"{goalie['name']} (goalie stats)")
-
     message = f"Game against {opponent} ({score_us}:{score_them}) saved."
     if stats_updated:
         message += f" Updated stats for: {', '.join(stats_updated)}"
+    message += " Note: Use Game Wizard for complete stats including goalie performance."
 
     return {"status": "ok", "message": message, "stats_updated": stats_updated}
 

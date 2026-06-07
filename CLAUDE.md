@@ -204,11 +204,26 @@ Required in `.env`:
 - [x] **Attendance Tracking Improvements** ✅
   - [x] Fixed "Not Coming" bug (was marking as confirmed)
   - [x] Days until calculation fixed (date-based)
+  - [x] Partial name matching for attendance
 - [x] **Ice Time Analysis Tool** ✅
   - [x] Agent tool: analyze_ice_time()
   - [x] Tracks age, status (veteran/regular/developing), avg_ice_time
   - [x] Recommends developing players needing more opportunities
-- [ ] Google Cloud Agent Builder deployment
+- [x] **Bug Fixes and Quality** ✅
+  - [x] Fixed quick game entry to not create fake goalie stats
+  - [x] Fixed schedule duplicate check to allow rescheduling cancelled games
+  - [x] Fixed Streamlit duplicate key errors (all buttons have unique keys)
+- [x] **Testing and Automation** ✅
+  - [x] 38 test cases with pytest and mongomock
+  - [x] Nox pipeline with 10 sessions (tests, lint, format, type_check, security)
+  - [x] Database verification script
+  - [x] Test coverage for all major features
+- [x] **Deployment** ✅
+  - [x] Dockerfile created
+  - [x] Cloud Run deployment scripts
+  - [x] Deployment guide documentation
+  - [x] Docker configuration files
+- [ ] **Deployment Complete** (in progress)
 - [ ] Demo video recorded
 - [ ] Devpost submission completed
 

@@ -27,8 +27,8 @@ def set_attendance(db, game_id: str, player_name: str, status: str, notes: str =
     if status not in ["confirmed", "declined", "pending"]:
         return {"status": "error", "message": "Status must be 'confirmed', 'declined', or 'pending'"}
 
-    # Verify player exists
-    player = db.players.find_one({"name": {"$regex": f"^{player_name}$", "$options": "i"}})
+    # Verify player exists (support partial name matching)
+    player = db.players.find_one({"name": {"$regex": player_name, "$options": "i"}})
     if not player:
         return {"status": "error", "message": f"Player '{player_name}' not found"}
 

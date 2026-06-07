@@ -99,6 +99,8 @@ def quick_record_game(
 ) -> Dict:
     """
     Quick game entry - bypasses wizard for fast recording.
+    Records game outcome and scorer stats only. Does NOT update goalie stats unless explicitly provided.
+    For complete goalie statistics, use the Game Wizard UI.
 
     Args:
         db: MongoDB database connection
@@ -106,8 +108,8 @@ def quick_record_game(
         score_us: Our score
         score_them: Their score
         scorers_text: Natural language scorer text (e.g., "Lukas 2G 1A, Felix 1G")
-        goalie_name: Name of goalie who played (optional)
-        shots_against: Shots against the goalie (optional)
+        goalie_name: Name of goalie who played (optional, requires shots_against)
+        shots_against: Shots against the goalie (required if goalie_name provided)
         notes: Game notes (optional)
         overtime: True if game went to OT/shootout (European scoring: W=3, OTW=2, OTL=1, L=0)
 
@@ -149,29 +151,25 @@ def quick_record_game(
         "scorers": [name for name, stats in player_stats.items() if stats["goals"] > 0]
     }
 
-    # Build goalie stats
+    # Build goalie stats - ONLY if explicitly provided with shots data
     goalie_stats = {}
-    if goalie_name:
+    if goalie_name and shots_against > 0:
         goalie_stats[goalie_name] = {
             "shots_against": shots_against,
             "minutes": 60  # Assume full game
         }
-    else:
-        # Try to find available goalie
-        goalie = db.players.find_one({"position": "Goalie", "available": True})
-        if goalie:
-            goalie_stats[goalie["name"]] = {
-                "shots_against": shots_against if shots_against > 0 else score_them + 10,  # Estimate
-                "minutes": 60
-            }
 
     # Update all stats
     try:
         updates_summary = update_all_game_stats(db, game_data, player_stats, goalie_stats)
 
+        message = f"✅ Game recorded: {score_us}-{score_them} vs {opponent} ({result})"
+        if not goalie_stats:
+            message += ". Note: Goalie stats not updated (use Game Wizard for complete stats)"
+
         return {
             "status": "success",
-            "message": f"✅ Game recorded: {score_us}-{score_them} vs {opponent} ({result})",
+            "message": message,
             "updates": updates_summary,
             "parsed_stats": player_stats
         }

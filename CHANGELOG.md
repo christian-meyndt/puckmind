@@ -1,6 +1,52 @@
 # Changelog
 
-## [Unreleased] - 2026-05-31
+## [Unreleased] - 2026-06-07
+
+### Added
+- **Google Cloud Deployment**
+  - Dockerfile for containerization
+  - Docker Compose support
+  - Cloud Run deployment scripts (`deploy.sh`, `deploy-local.sh`)
+  - Comprehensive deployment guide (`DEPLOYMENT_GUIDE.md`)
+  - `.dockerignore` and `.gcloudignore` files
+- **Comprehensive Test Suite**
+  - 38 test cases across 6 test files
+  - Tests for European points, quick game entry, schedule, attendance, ice time analysis, player availability
+  - `pytest.ini` configuration
+  - `conftest.py` with reusable fixtures using mongomock
+  - Test documentation: `tests/README.md`
+- **Nox Automation Pipeline**
+  - `noxfile.py` with 10 sessions: tests, lint, format, type_check, security, etc.
+  - Full check session runs all quality checks
+  - Quick test session for fast feedback
+- **Database Verification Tool**
+  - `verify_database.py` script to check database contents
+  - Displays players, games, scheduled games, attendance, top scorers, goalies
+- **UI Improvements**
+  - All sidebar buttons now have unique keys (prevents Streamlit duplicate key errors)
+  - Improved chat interface with better agent responses
+
+### Fixed
+- **Quick Game Entry - No More Fake Goalie Stats**
+  - Removed automatic goalie stat updates from `add_game_result()`
+  - Removed estimated shots calculation (`score_them + 10`)
+  - Quick entry now only records: game outcome + scorer goals
+  - Goalie stats only updated when explicitly provided with shots data
+  - Clear user message: "Use Game Wizard for complete stats including goalie performance"
+- **Schedule Duplicate Prevention**
+  - Cancelled games no longer block scheduling new games on same date
+  - Duplicate check now only considers active (`status="scheduled"`) games
+- **Player Name Matching**
+  - Attendance functions now support partial name matching
+  - "Lukas" correctly matches "Lukas Schäfer"
+  - Changed from exact regex match (`^name$`) to partial match (`name`)
+
+### Documentation
+- Added `DEPLOYMENT_GUIDE.md` with 3 deployment options
+- Updated README.md structure references
+- Added deployment status to CLAUDE.md
+
+## [2026-05-31] - European Points & Enhanced Features
 
 ### Added
 - **European Points System** (W=3pts, OTW=2pts, OTL=1pt, L=0pts)

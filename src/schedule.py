@@ -24,10 +24,11 @@ def add_scheduled_game(db, opponent: str, game_date: datetime, location: str = "
     Returns:
         Result dictionary with status and game_id
     """
-    # Check for duplicate
+    # Check for duplicate (only block if there's an active scheduled game, not cancelled)
     existing = db.scheduled_games.find_one({
         "opponent": opponent,
-        "date": game_date
+        "date": game_date,
+        "status": "scheduled"
     })
 
     if existing:
