@@ -3,7 +3,6 @@ Shared MongoDB Connection for PuckMind
 Centralizes database connection to avoid duplication.
 """
 
-import ssl
 from pymongo import MongoClient
 from pymongo.database import Database
 from src.config import MONGODB_URI, DATABASE_NAME
@@ -20,11 +19,8 @@ def get_client() -> MongoClient:
     """
     global _client
     if _client is None:
-        _client = MongoClient(
-            MONGODB_URI,
-            ssl=True,
-            ssl_cert_reqs=ssl.CERT_NONE
-        )
+        # MongoDB Atlas connection string already includes TLS/SSL settings
+        _client = MongoClient(MONGODB_URI)
     return _client
 
 
