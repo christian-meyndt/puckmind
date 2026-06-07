@@ -27,9 +27,9 @@ gcloud services enable containerregistry.googleapis.com
 echo "Configuring Docker authentication..."
 gcloud auth configure-docker
 
-# Build the container image locally
-echo "Building container image locally..."
-docker build -t ${IMAGE_NAME} .
+# Build the container image locally for AMD64 (Cloud Run requirement)
+echo "Building container image for AMD64 (Cloud Run)..."
+docker build --platform linux/amd64 -t ${IMAGE_NAME} .
 
 # Push to Google Container Registry
 echo "Pushing image to GCR..."
