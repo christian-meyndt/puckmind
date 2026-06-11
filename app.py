@@ -201,7 +201,12 @@ with st.sidebar:
 
     if st.button("🔄 Reset Chat", key="reset_chat"):
         st.session_state.messages = []
-        st.session_state.agent_session = None
+        # Create a new session instead of setting to None
+        if st.session_state.session_service is not None:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            agent_session = loop.run_until_complete(create_session(st.session_state.session_service))
+            st.session_state.agent_session = agent_session
         st.rerun()
 
     st.divider()
